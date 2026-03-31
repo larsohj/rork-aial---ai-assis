@@ -234,7 +234,7 @@ export default function EventsFeedScreen() {
     []
   );
 
-  const keyExtractor = useCallback((item: EventData) => item.id, []);
+  const keyExtractor = useCallback((item: EventData) => item.source_id, []);
 
   const dateFilterLabel = useMemo(() => {
     if (dateFilter === "custom" && customRange.from && customRange.to) {

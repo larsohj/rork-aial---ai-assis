@@ -1,5 +1,6 @@
-import { supabase } from "./supabase";
-import { EventData } from "@/types/event";
+import { EventData, EventsResponse } from "@/types/event";
+
+const EVENTS_URL = "https://cdn.jsdelivr.net/gh/larsohj/iaal@main/docs/events.json";
 
 function normalizeTitle(title: string): string {
   return title
@@ -55,9 +56,6 @@ function mergeDuplicate(existing: EventData, incoming: EventData): EventData {
   if (!merged.location_name && incoming.location_name) {
     merged.location_name = incoming.location_name;
   }
-  if (!merged.address && incoming.address) {
-    merged.address = incoming.address;
-  }
   if (!merged.url && incoming.url) {
     merged.url = incoming.url;
   }
@@ -70,7 +68,7 @@ function mergeDuplicate(existing: EventData, incoming: EventData): EventData {
   if (!merged.organizer && incoming.organizer) {
     merged.organizer = incoming.organizer;
   }
-  if (merged.latitude === null && incoming.latitude !== null) {
+  if (merged.latitude == null && incoming.latitude != null) {
     merged.latitude = incoming.latitude;
     merged.longitude = incoming.longitude;
   }
@@ -138,74 +136,33 @@ function deduplicateEvents(events: EventData[]): EventData[] {
   return result;
 }
 
-async function fetchEventsViaClient(): Promise<EventData[]> {
-  if (!supabase) {
-    console.error("[events] Supabase client not initialized");
-    throw new Error("Supabase-konfigurasjon mangler");
-  }
-
-  console.log("[events] Fetching events via Supabase client...");
-
-  const pageSize = 1000;
-  let allData: EventData[] = [];
-  let from = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    const { data, error, status } = await supabase
-      .from("events")
-      .select("*")
-      .order("start_at", { ascending: true, nullsFirst: false })
-      .range(from, from + pageSize - 1);
-
-    console.log(`[events] Page from=${from}, status=${status}, rows=${data?.length ?? 0}`);
-
-    if (error) {
-      console.error("[events] Client error:", JSON.stringify(error));
-      throw new Error(error.message);
-    }
-
-    const rows = (data ?? []) as EventData[];
-    allData = allData.concat(rows);
-
-    if (rows.length < pageSize) {
-      hasMore = false;
-    } else {
-      from += pageSize;
-    }
-  }
-
-  console.log(`[events] Total fetched: ${allData.length}`);
-  return allData;
-}
-
 export async function fetchEvents(): Promise<EventData[]> {
-  console.log("[events] Starting fetchEvents...");
-  console.log("[events] IAAL URL present:", !!process.env.EXPO_PUBLIC_IAAL_SUPABASE_URL);
-  console.log("[events] IAAL Key present:", !!process.env.EXPO_PUBLIC_IAAL_SUPABASE_KEY);
-  console.log("[events] System URL present:", !!process.env.EXPO_PUBLIC_SUPABASE_URL);
-  console.log("[events] System Key present:", !!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
+  console.log("[events] Fetching events from GitHub CDN...");
 
-  let allData: EventData[] = [];
-
-  try {
-    allData = await fetchEventsViaClient();
-  } catch (err) {
-    console.error("[events] Fetch failed:", err);
-    throw err;
+  const response = await fetch(EVENTS_URL);
+  if (!response.ok) {
+    console.error(`[events] HTTP error: ${response.status} ${response.statusText}`);
+    throw new Error(`Kunne ikke laste arrangementer (HTTP ${response.status})`);
   }
 
-  console.log(`[events] Total rows from DB: ${allData.length}`);
+  const json: EventsResponse = await response.json();
+  console.log(`[events] Received ${json.events.length} events, generated at ${json.generated_at}`);
+
+  if (json.failed_sources.length > 0) {
+    console.warn("[events] Failed sources:", json.failed_sources);
+  }
+
+  const allData = json.events;
 
   const sourceCounts: Record<string, number> = {};
   allData.forEach((e) => {
     const src = e.source || "(unknown)";
     sourceCounts[src] = (sourceCounts[src] || 0) + 1;
   });
-  console.log("[events] Sources in DB:", JSON.stringify(sourceCounts));
+  console.log("[events] Sources:", JSON.stringify(sourceCounts));
 
   if (allData.length === 0) {
-    console.warn("[events] DATABASE RETURNED 0 ROWS. Possible causes: RLS blocking reads, empty table, or wrong table name.");
+    console.warn("[events] No events in response");
     return [];
   }
 
@@ -230,43 +187,17 @@ export async function fetchEvents(): Promise<EventData[]> {
 }
 
 export async function fetchAllTags(): Promise<string[]> {
-  if (!supabase) {
-    console.warn("[events] Supabase client not initialized, returning empty tags");
-    return [];
-  }
-
-  console.log("[events] Fetching tags...");
+  console.log("[events] Extracting tags from events...");
 
   try {
-    const pageSize = 1000;
-    let allRows: { tags: string[] }[] = [];
-    let from = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data, error } = await supabase
-        .from("events")
-        .select("tags")
-        .range(from, from + pageSize - 1);
-
-      if (error) {
-        console.error("[events] Error fetching tags:", JSON.stringify(error));
-        return [];
-      }
-
-      const rows = (data ?? []) as { tags: string[] }[];
-      allRows = allRows.concat(rows);
-
-      if (rows.length < pageSize) {
-        hasMore = false;
-      } else {
-        from += pageSize;
-      }
+    const response = await fetch(EVENTS_URL);
+    if (!response.ok) {
+      console.error(`[events] HTTP error fetching tags: ${response.status}`);
+      return [];
     }
 
-    console.log(`[events] Tags query returned ${allRows.length} rows`);
-
-    const allTags = allRows.flatMap((row) => row.tags ?? []);
+    const json: EventsResponse = await response.json();
+    const allTags = json.events.flatMap((e) => e.tags ?? []);
     const unique = [...new Set(allTags)].sort();
     console.log(`[events] Found ${unique.length} unique tags:`, unique);
     return unique;

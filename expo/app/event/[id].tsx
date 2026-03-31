@@ -41,7 +41,7 @@ export default function EventDetailScreen() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const event = eventsQuery.data?.find((e: EventData) => e.id === id);
+  const event = eventsQuery.data?.find((e: EventData) => e.source_id === id);
 
   const openLink = useCallback(() => {
     if (event?.url) {
@@ -67,7 +67,7 @@ export default function EventDetailScreen() {
 
   const openMaps = useCallback(() => {
     if (!event) return;
-    const query = event.address ?? event.location_name ?? "";
+    const query = event.location_name ?? "";
     if (!query) return;
     const url =
       Platform.OS === "ios"
@@ -171,9 +171,6 @@ export default function EventDetailScreen() {
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Sted</Text>
                   <Text style={styles.detailValue}>{event.location_name}</Text>
-                  {event.address && (
-                    <Text style={styles.detailSubvalue}>{event.address}</Text>
-                  )}
                 </View>
               </Pressable>
             )}

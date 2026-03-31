@@ -40,8 +40,8 @@ function EventCardComponent({ event }: EventCardProps) {
   }, [scaleAnim]);
 
   const handlePress = useCallback(() => {
-    router.push({ pathname: "/event/[id]", params: { id: event.id } });
-  }, [router, event.id]);
+    router.push({ pathname: "/event/[id]", params: { id: event.source_id } });
+  }, [router, event.source_id]);
 
   const dateStr = formatEventDate(event.start_at);
   const timeStr = formatEventTime(event.start_at, event.end_at);
@@ -54,7 +54,7 @@ function EventCardComponent({ event }: EventCardProps) {
         onPressIn={onPressIn}
         onPressOut={onPressOut}
         style={styles.card}
-        testID={`event-card-${event.id}`}
+        testID={`event-card-${event.source_id}`}
       >
         {event.image_url ? (
           <Image
