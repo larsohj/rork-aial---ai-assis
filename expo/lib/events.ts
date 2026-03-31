@@ -187,6 +187,29 @@ export async function fetchEvents(): Promise<EventData[]> {
   return deduped;
 }
 
+export async function fetchAllCities(): Promise<string[]> {
+  console.log("[events] Extracting cities from events...");
+
+  try {
+    const response = await fetch(EVENTS_URL);
+    if (!response.ok) {
+      console.error(`[events] HTTP error fetching cities: ${response.status}`);
+      return [];
+    }
+
+    const json: EventsResponse = await response.json();
+    const allCities = json.events
+      .map((e) => e.city)
+      .filter((c): c is string => !!c && c.trim().length > 0);
+    const unique = [...new Set(allCities)].sort();
+    console.log(`[events] Found ${unique.length} unique cities:`, unique);
+    return unique;
+  } catch (err) {
+    console.error("[events] Exception fetching cities:", err);
+    return [];
+  }
+}
+
 export async function fetchAllTags(): Promise<string[]> {
   console.log("[events] Extracting tags from events...");
 

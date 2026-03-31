@@ -14,10 +14,10 @@ import {
 } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Search, X, CalendarDays, Calendar, ChevronDown, Check } from "lucide-react-native";
+import { Search, X, CalendarDays, Calendar, ChevronDown, Check, MapPin, Ticket } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { EventData } from "@/types/event";
-import { fetchEvents, fetchAllTags } from "@/lib/events";
+import { fetchEvents, fetchAllTags, fetchAllCities } from "@/lib/events";
 import { EventCard } from "@/components/EventCard";
 
 type DateFilterType = "all" | "today" | "weekend" | "custom";
@@ -71,6 +71,8 @@ export default function EventsFeedScreen() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState<DateFilterType>("all");
   const [customRange, setCustomRange] = useState<DateRange>({ from: null, to: null });
+  const [selectedCities, setSelectedCities] = useState<string[]>([]);
+  const [showFreeOnly, setShowFreeOnly] = useState<boolean>(false);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [pickerMonth, setPickerMonth] = useState<number>(new Date().getMonth());
   const [pickerYear, setPickerYear] = useState<number>(new Date().getFullYear());
@@ -90,7 +92,14 @@ export default function EventsFeedScreen() {
     staleTime: 1000 * 60 * 10,
   });
 
+  const citiesQuery = useQuery({
+    queryKey: ["cities"],
+    queryFn: fetchAllCities,
+    staleTime: 1000 * 60 * 10,
+  });
+
   const tags = useMemo(() => tagsQuery.data ?? [], [tagsQuery.data]);
+  const cities = useMemo(() => citiesQuery.data ?? [], [citiesQuery.data]);
 
   const filteredEvents = useMemo(() => {
     const events = eventsQuery.data ?? [];
@@ -111,6 +120,16 @@ export default function EventsFeedScreen() {
       filtered = filtered.filter((e) =>
         selectedTags.some((tag) => e.tags?.includes(tag))
       );
+    }
+
+    if (selectedCities.length > 0) {
+      filtered = filtered.filter((e) =>
+        selectedCities.some((city) => e.city?.toLowerCase() === city.toLowerCase())
+      );
+    }
+
+    if (showFreeOnly) {
+      filtered = filtered.filter((e) => e.is_free === true);
     }
 
     if (dateFilter === "today") {
@@ -148,12 +167,22 @@ export default function EventsFeedScreen() {
     }
 
     return filtered;
-  }, [eventsQuery.data, search, selectedTags, dateFilter, customRange]);
+  }, [eventsQuery.data, search, selectedTags, selectedCities, showFreeOnly, dateFilter, customRange]);
 
   const toggleTag = useCallback((tag: string) => {
     setSelectedTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     );
+  }, []);
+
+  const toggleCity = useCallback((city: string) => {
+    setSelectedCities((prev) =>
+      prev.includes(city) ? prev.filter((c) => c !== city) : [...prev, city]
+    );
+  }, []);
+
+  const toggleFreeOnly = useCallback(() => {
+    setShowFreeOnly((prev) => !prev);
   }, []);
 
   const clearSearch = useCallback(() => {
@@ -163,7 +192,8 @@ export default function EventsFeedScreen() {
   const onRefresh = useCallback(() => {
     void eventsQuery.refetch();
     void tagsQuery.refetch();
-  }, [eventsQuery, tagsQuery]);
+    void citiesQuery.refetch();
+  }, [eventsQuery, tagsQuery, citiesQuery]);
 
   const selectDateFilter = useCallback((type: DateFilterType) => {
     if (type === "custom") {
@@ -246,13 +276,17 @@ export default function EventsFeedScreen() {
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (selectedTags.length > 0) count += selectedTags.length;
+    if (selectedCities.length > 0) count += selectedCities.length;
+    if (showFreeOnly) count += 1;
     if (dateFilter !== "all") count += 1;
     if (search.trim()) count += 1;
     return count;
-  }, [selectedTags, dateFilter, search]);
+  }, [selectedTags, selectedCities, showFreeOnly, dateFilter, search]);
 
   const clearAllFilters = useCallback(() => {
     setSelectedTags([]);
+    setSelectedCities([]);
+    setShowFreeOnly(false);
     setDateFilter("all");
     setCustomRange({ from: null, to: null });
     setSearch("");
@@ -292,6 +326,32 @@ export default function EventsFeedScreen() {
               </Pressable>
             )}
           </View>
+        </View>
+
+        <View style={styles.quickFiltersRow}>
+          <Pressable
+            onPress={toggleFreeOnly}
+            style={[styles.quickChip, showFreeOnly && styles.quickChipFreeActive]}
+            testID="filter-free"
+          >
+            <Ticket size={14} color={showFreeOnly ? Colors.white : Colors.free} />
+            <Text style={[styles.quickChipText, { color: showFreeOnly ? Colors.white : Colors.free }]}>Gratis</Text>
+          </Pressable>
+
+          {cities.length > 0 && cities.map((city) => {
+            const isSelected = selectedCities.includes(city);
+            return (
+              <Pressable
+                key={city}
+                onPress={() => toggleCity(city)}
+                style={[styles.quickChip, isSelected && styles.quickChipCityActive]}
+                testID={`filter-city-${city}`}
+              >
+                <MapPin size={14} color={isSelected ? Colors.white : Colors.primaryLight} />
+                <Text style={[styles.quickChipText, { color: isSelected ? Colors.white : Colors.primaryLight }]}>{city}</Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         <View style={styles.dateFiltersRow}>
@@ -372,7 +432,7 @@ export default function EventsFeedScreen() {
         </View>
       </View>
     ),
-    [search, tags, selectedTags, filteredEvents.length, dateFilter, dateFilterLabel, activeFiltersCount, clearSearch, toggleTag, selectDateFilter, clearAllFilters]
+    [search, tags, selectedTags, cities, selectedCities, showFreeOnly, filteredEvents.length, dateFilter, dateFilterLabel, activeFiltersCount, clearSearch, toggleTag, toggleCity, toggleFreeOnly, selectDateFilter, clearAllFilters]
   );
 
   const renderEmpty = useMemo(() => {
@@ -408,6 +468,7 @@ export default function EventsFeedScreen() {
           {search || selectedTags.length > 0 || dateFilter !== "all"
             ? "Prøv å endre søket eller filteret ditt"
             : "Det er ingen kommende arrangementer akkurat nå"}
+
         </Text>
       </View>
     );
@@ -602,6 +663,36 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.text,
     padding: 0,
+  },
+  quickFiltersRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  quickChip: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 5,
+    backgroundColor: Colors.white,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  quickChipText: {
+    fontSize: 13,
+    fontWeight: "600" as const,
+  },
+  quickChipFreeActive: {
+    backgroundColor: Colors.free,
+    borderColor: Colors.free,
+  },
+  quickChipCityActive: {
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primaryLight,
   },
   dateFiltersRow: {
     flexDirection: "row" as const,
