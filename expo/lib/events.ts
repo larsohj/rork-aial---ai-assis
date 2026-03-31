@@ -31,7 +31,7 @@ function hasRealTime(dateStr: string | null): boolean {
   if (!dateStr) return false;
   if (dateStr.includes("T00:00:00")) return false;
   const d = new Date(dateStr);
-  return !(d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0);
+  return !(d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0);
 }
 
 function mergeDuplicate(existing: EventData, incoming: EventData): EventData {
