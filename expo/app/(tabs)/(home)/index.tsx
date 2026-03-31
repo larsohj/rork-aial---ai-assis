@@ -805,6 +805,7 @@ const styles = StyleSheet.create({
   },
   quickFiltersRow: {
     flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
     alignItems: "center" as const,
     paddingHorizontal: 16,
     paddingBottom: 8,
