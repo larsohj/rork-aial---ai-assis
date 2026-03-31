@@ -17,9 +17,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Search, X, CalendarDays, Calendar, ChevronDown, ChevronRight, Check, MapPin, Ticket, Film, Music, Palette, Mountain, Baby, Laugh } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { EventData } from "@/types/event";
-import { fetchEvents, fetchAllTags, fetchAllCities } from "@/lib/events";
+import { fetchEvents, fetchAllTags } from "@/lib/events";
 import { EventCard } from "@/components/EventCard";
 import { TAG_HIERARCHY, TagCategory, isOrphanTag } from "@/constants/tagHierarchy";
+import { AREAS, getEventArea } from "@/constants/areaMapping";
 
 type DateFilterType = "all" | "today" | "weekend" | "custom";
 
@@ -73,7 +74,7 @@ export default function EventsFeedScreen() {
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState<DateFilterType>("all");
   const [customRange, setCustomRange] = useState<DateRange>({ from: null, to: null });
-  const [selectedCities, setSelectedCities] = useState<string[]>([]);
+  const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
   const [showFreeOnly, setShowFreeOnly] = useState<boolean>(false);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [pickerMonth, setPickerMonth] = useState<number>(new Date().getMonth());
@@ -94,14 +95,16 @@ export default function EventsFeedScreen() {
     staleTime: 1000 * 60 * 10,
   });
 
-  const citiesQuery = useQuery({
-    queryKey: ["cities"],
-    queryFn: fetchAllCities,
-    staleTime: 1000 * 60 * 10,
-  });
-
   const tags = useMemo(() => tagsQuery.data ?? [], [tagsQuery.data]);
-  const cities = useMemo(() => citiesQuery.data ?? [], [citiesQuery.data]);
+
+  const availableAreas = useMemo(() => {
+    const events = eventsQuery.data ?? [];
+    const areaSet = new Set<string>();
+    events.forEach((e) => {
+      areaSet.add(getEventArea(e.location_name));
+    });
+    return AREAS.filter((a) => areaSet.has(a.key));
+  }, [eventsQuery.data]);
 
   const filteredEvents = useMemo(() => {
     const events = eventsQuery.data ?? [];
@@ -124,9 +127,9 @@ export default function EventsFeedScreen() {
       );
     }
 
-    if (selectedCities.length > 0) {
+    if (selectedAreas.length > 0) {
       filtered = filtered.filter((e) =>
-        selectedCities.some((city) => e.city?.toLowerCase() === city.toLowerCase())
+        selectedAreas.includes(getEventArea(e.location_name))
       );
     }
 
@@ -169,7 +172,7 @@ export default function EventsFeedScreen() {
     }
 
     return filtered;
-  }, [eventsQuery.data, search, selectedTags, selectedCities, showFreeOnly, dateFilter, customRange]);
+  }, [eventsQuery.data, search, selectedTags, selectedAreas, showFreeOnly, dateFilter, customRange]);
 
   const toggleTag = useCallback((tag: string) => {
     setSelectedTags((prev) =>
@@ -195,9 +198,9 @@ export default function EventsFeedScreen() {
     });
   }, []);
 
-  const toggleCity = useCallback((city: string) => {
-    setSelectedCities((prev) =>
-      prev.includes(city) ? prev.filter((c) => c !== city) : [...prev, city]
+  const toggleArea = useCallback((areaKey: string) => {
+    setSelectedAreas((prev) =>
+      prev.includes(areaKey) ? prev.filter((a) => a !== areaKey) : [...prev, areaKey]
     );
   }, []);
 
@@ -212,8 +215,7 @@ export default function EventsFeedScreen() {
   const onRefresh = useCallback(() => {
     void eventsQuery.refetch();
     void tagsQuery.refetch();
-    void citiesQuery.refetch();
-  }, [eventsQuery, tagsQuery, citiesQuery]);
+  }, [eventsQuery, tagsQuery]);
 
   const selectDateFilter = useCallback((type: DateFilterType) => {
     if (type === "custom") {
@@ -296,16 +298,16 @@ export default function EventsFeedScreen() {
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (selectedTags.length > 0) count += selectedTags.length;
-    if (selectedCities.length > 0) count += selectedCities.length;
+    if (selectedAreas.length > 0) count += selectedAreas.length;
     if (showFreeOnly) count += 1;
     if (dateFilter !== "all") count += 1;
     if (search.trim()) count += 1;
     return count;
-  }, [selectedTags, selectedCities, showFreeOnly, dateFilter, search]);
+  }, [selectedTags, selectedAreas, showFreeOnly, dateFilter, search]);
 
   const clearAllFilters = useCallback(() => {
     setSelectedTags([]);
-    setSelectedCities([]);
+    setSelectedAreas([]);
     setShowFreeOnly(false);
     setDateFilter("all");
     setCustomRange({ from: null, to: null });
@@ -385,17 +387,17 @@ export default function EventsFeedScreen() {
             <Text style={[styles.quickChipText, { color: showFreeOnly ? Colors.white : Colors.free }]}>Gratis</Text>
           </Pressable>
 
-          {cities.length > 0 && cities.map((city) => {
-            const isSelected = selectedCities.includes(city);
+          {availableAreas.map((area) => {
+            const isSelected = selectedAreas.includes(area.key);
             return (
               <Pressable
-                key={city}
-                onPress={() => toggleCity(city)}
+                key={area.key}
+                onPress={() => toggleArea(area.key)}
                 style={[styles.quickChip, isSelected && styles.quickChipCityActive]}
-                testID={`filter-city-${city}`}
+                testID={`filter-area-${area.key}`}
               >
                 <MapPin size={14} color={isSelected ? Colors.white : Colors.primaryLight} />
-                <Text style={[styles.quickChipText, { color: isSelected ? Colors.white : Colors.primaryLight }]}>{city}</Text>
+                <Text style={[styles.quickChipText, { color: isSelected ? Colors.white : Colors.primaryLight }]}>{area.label}</Text>
               </Pressable>
             );
           })}
@@ -569,7 +571,7 @@ export default function EventsFeedScreen() {
         </View>
       </View>
     ),
-    [search, categoriesWithAvailable, orphanTags, selectedTags, expandedCategories, cities, selectedCities, showFreeOnly, filteredEvents.length, dateFilter, dateFilterLabel, activeFiltersCount, clearSearch, toggleTag, toggleCategory, toggleCategoryAll, categoryIcon, toggleCity, toggleFreeOnly, selectDateFilter, clearAllFilters]
+    [search, categoriesWithAvailable, orphanTags, selectedTags, expandedCategories, availableAreas, selectedAreas, showFreeOnly, filteredEvents.length, dateFilter, dateFilterLabel, activeFiltersCount, clearSearch, toggleTag, toggleCategory, toggleCategoryAll, categoryIcon, toggleArea, toggleFreeOnly, selectDateFilter, clearAllFilters]
   );
 
   const renderEmpty = useMemo(() => {
