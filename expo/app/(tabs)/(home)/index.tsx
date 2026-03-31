@@ -627,7 +627,7 @@ export default function EventsFeedScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Animated.View style={[styles.header, { opacity: headerOpacity }]}>
-        <Text style={styles.headerTitle}>Hva skjer i Ålesund?</Text>
+        <Text style={styles.headerTitle}>Ålesund - Hva skjer?</Text>
         <Text style={styles.headerSubtitle}>{todayLabel}</Text>
       </Animated.View>
 
