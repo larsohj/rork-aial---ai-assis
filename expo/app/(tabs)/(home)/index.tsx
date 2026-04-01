@@ -38,7 +38,6 @@ import { EventData } from "@/types/event";
 import { fetchEvents, fetchAllTags } from "@/lib/events";
 import { EventCard } from "@/components/EventCard";
 import { EventCardCarousel, CAROUSEL_CARD_WIDTH, CAROUSEL_CARD_GAP } from "@/components/EventCardCarousel";
-import { HeroCard } from "@/components/HeroCard";
 import { TAG_HIERARCHY } from "@/constants/tagHierarchy";
 import { AREAS, getEventArea } from "@/constants/areaMapping";
 import { groupEventsByDate } from "@/lib/dateUtils";
@@ -370,22 +369,6 @@ export default function EventsFeedScreen() {
     return search.trim().length > 0 || selectedCategory !== "all" || selectedSubTags.length > 0 || selectedAreas.length > 0 || showFreeOnly || dateFilter !== "all";
   }, [search, selectedCategory, selectedSubTags, selectedAreas, showFreeOnly, dateFilter]);
 
-  const featuredEvent = useMemo(() => {
-    const events = eventsQuery.data ?? [];
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayEnd = new Date(todayStart);
-    todayEnd.setHours(23, 59, 59, 999);
-    const todayEvents = events.filter((e) => {
-      if (!e.start_at) return false;
-      const start = new Date(e.start_at);
-      return start >= todayStart && start <= todayEnd && e.image_url;
-    });
-    if (todayEvents.length > 0) return todayEvents[0];
-    const withImage = events.filter((e) => e.image_url && e.start_at);
-    return withImage.length > 0 ? withImage[0] : null;
-  }, [eventsQuery.data]);
-
   const tonightEvents = useMemo(() => {
     const events = eventsQuery.data ?? [];
     const now = new Date();
@@ -395,9 +378,9 @@ export default function EventsFeedScreen() {
     return events.filter((e) => {
       if (!e.start_at) return false;
       const start = new Date(e.start_at);
-      return start >= todayStart && start < tomorrowStart && e.source_id !== featuredEvent?.source_id;
+      return start >= todayStart && start < tomorrowStart;
     }).slice(0, 10);
-  }, [eventsQuery.data, featuredEvent]);
+  }, [eventsQuery.data]);
 
   const weekendEvents = useMemo(() => {
     const events = eventsQuery.data ?? [];
@@ -408,12 +391,12 @@ export default function EventsFeedScreen() {
       const start = new Date(e.start_at);
       const end = e.end_at ? new Date(e.end_at) : start;
       if (end.getTime() - start.getTime() > MAX_DURATION_MS) return false;
-      return start <= weekendEnd && end >= weekendStart && e.source_id !== featuredEvent?.source_id;
+      return start <= weekendEnd && end >= weekendStart;
     });
     const paid = weekend.filter((e) => e.is_free !== true);
     const free = weekend.filter((e) => e.is_free === true);
     return [...paid, ...free].slice(0, 10);
-  }, [eventsQuery.data, featuredEvent]);
+  }, [eventsQuery.data]);
 
   const headerOpacity = scrollY.interpolate({
     inputRange: [0, 60],
@@ -644,12 +627,6 @@ export default function EventsFeedScreen() {
           </Pressable>
         </View>
 
-        {!hasActiveFilters && featuredEvent && (
-          <View style={styles.heroSection}>
-            <HeroCard event={featuredEvent} />
-          </View>
-        )}
-
         {!hasActiveFilters && tonightEvents.length > 0 && (
           <View style={styles.carouselSection}>
             <View style={styles.carouselHeader}>
@@ -711,7 +688,7 @@ export default function EventsFeedScreen() {
         </View>
       </View>
     ),
-    [search, categoryTabs, selectedCategory, selectedSubTags, availableSubTags, showFreeOnly, filteredEvents.length, dateFilter, dateFilterLabel, activeFiltersCount, advancedFilterCount, hasActiveFilters, featuredEvent, tonightEvents, weekendEvents, clearSearch, selectCategory, toggleSubTag, toggleFreeOnly, selectDateFilter, clearAllFilters]
+    [search, categoryTabs, selectedCategory, selectedSubTags, availableSubTags, showFreeOnly, filteredEvents.length, dateFilter, dateFilterLabel, activeFiltersCount, advancedFilterCount, hasActiveFilters, tonightEvents, weekendEvents, clearSearch, selectCategory, toggleSubTag, toggleFreeOnly, selectDateFilter, clearAllFilters]
   );
 
   const renderEmpty = useMemo(() => {
