@@ -81,3 +81,98 @@ export function getRelativeDateLabel(dateStr: string | null): string | null {
     return null;
   }
 }
+
+export interface DateSection {
+  title: string;
+  data: import("@/types/event").EventData[];
+}
+
+function getWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+}
+
+function isWeekend(date: Date): boolean {
+  const day = date.getDay();
+  return day === 5 || day === 6 || day === 0;
+}
+
+export function groupEventsByDate(events: import("@/types/event").EventData[]): DateSection[] {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const dayAfterTomorrow = new Date(today);
+  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
+
+  const currentDay = today.getDay();
+  let daysUntilFriday = 5 - currentDay;
+  if (daysUntilFriday < 0) daysUntilFriday += 7;
+  const nextFriday = new Date(today);
+  nextFriday.setDate(nextFriday.getDate() + daysUntilFriday);
+  const nextSunday = new Date(nextFriday);
+  nextSunday.setDate(nextSunday.getDate() + 2);
+  nextSunday.setHours(23, 59, 59, 999);
+
+  const isCurrentlyWeekend = isWeekend(today);
+
+  const buckets = new Map<string, { title: string; events: import("@/types/event").EventData[]; sortKey: number }>();
+
+  const sorted = [...events].sort((a, b) => {
+    const dA = a.start_at ? new Date(a.start_at).getTime() : 0;
+    const dB = b.start_at ? new Date(b.start_at).getTime() : 0;
+    return dA - dB;
+  });
+
+  for (const event of sorted) {
+    if (!event.start_at) {
+      const key = "__unknown";
+      if (!buckets.has(key)) buckets.set(key, { title: "Dato ikke oppgitt", events: [], sortKey: 999999 });
+      buckets.get(key)!.events.push(event);
+      continue;
+    }
+
+    const eventDate = new Date(event.start_at);
+    const eventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+    const diffDays = Math.floor((eventDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      const key = "__today";
+      if (!buckets.has(key)) buckets.set(key, { title: "I dag", events: [], sortKey: 0 });
+      buckets.get(key)!.events.push(event);
+    } else if (diffDays === 1) {
+      const key = "__tomorrow";
+      if (!buckets.has(key)) buckets.set(key, { title: "I morgen", events: [], sortKey: 1 });
+      buckets.get(key)!.events.push(event);
+    } else if (!isCurrentlyWeekend && diffDays >= 2 && eventDay.getTime() <= nextSunday.getTime() && isWeekend(eventDay)) {
+      const key = "__weekend";
+      if (!buckets.has(key)) buckets.set(key, { title: "Denne helgen", events: [], sortKey: 2 });
+      buckets.get(key)!.events.push(event);
+    } else if (diffDays < 7) {
+      const key = "__thisweek";
+      if (!buckets.has(key)) buckets.set(key, { title: "Denne uken", events: [], sortKey: 3 });
+      buckets.get(key)!.events.push(event);
+    } else if (diffDays < 14) {
+      const key = "__nextweek";
+      if (!buckets.has(key)) buckets.set(key, { title: "Neste uke", events: [], sortKey: 4 });
+      buckets.get(key)!.events.push(event);
+    } else {
+      const weekNum = getWeekNumber(eventDate);
+      const monthName = MONTHS_NO[eventDate.getMonth()];
+      const key = `__week_${eventDate.getFullYear()}_${weekNum}`;
+      const title = `Uke ${weekNum} · ${monthName.charAt(0).toUpperCase() + monthName.slice(1)}`;
+      if (!buckets.has(key)) buckets.set(key, { title, events: [], sortKey: 100 + diffDays });
+      buckets.get(key)!.events.push(event);
+    }
+  }
+
+  const sections = [...buckets.values()]
+    .sort((a, b) => a.sortKey - b.sortKey)
+    .map(({ title, events: sectionEvents }) => ({ title, data: sectionEvents }));
+
+  return sections;
+}

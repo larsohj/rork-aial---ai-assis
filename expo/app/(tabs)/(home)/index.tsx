@@ -3,7 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  SectionList,
   TextInput,
   Pressable,
   RefreshControl,
@@ -21,6 +21,7 @@ import { fetchEvents, fetchAllTags } from "@/lib/events";
 import { EventCard } from "@/components/EventCard";
 import { TAG_HIERARCHY, TagCategory, isOrphanTag } from "@/constants/tagHierarchy";
 import { AREAS, getEventArea } from "@/constants/areaMapping";
+import { groupEventsByDate, DateSection } from "@/lib/dateUtils";
 
 type DateFilterType = "all" | "today" | "weekend" | "custom";
 
@@ -281,8 +282,25 @@ export default function EventsFeedScreen() {
     extrapolate: "clamp",
   });
 
+  const sections = useMemo(() => {
+    return groupEventsByDate(filteredEvents);
+  }, [filteredEvents]);
+
   const renderEvent = useCallback(
     ({ item }: { item: EventData }) => <EventCard event={item} />,
+    []
+  );
+
+  const renderSectionHeader = useCallback(
+    ({ section }: { section: DateSection }) => (
+      <View style={styles.sectionHeaderContainer}>
+        <View style={styles.sectionHeaderLine} />
+        <Text style={styles.sectionHeaderText}>{section.title}</Text>
+        <Text style={styles.sectionHeaderCount}>
+          {section.data.length} {section.data.length === 1 ? "arrangement" : "arr."}
+        </Text>
+      </View>
+    ),
     []
   );
 
@@ -631,14 +649,16 @@ export default function EventsFeedScreen() {
         <Text style={styles.headerSubtitle}>{todayLabel}</Text>
       </Animated.View>
 
-      <FlatList
-        data={filteredEvents}
+      <SectionList
+        sections={sections}
         renderItem={renderEvent}
+        renderSectionHeader={renderSectionHeader}
         keyExtractor={keyExtractor}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        stickySectionHeadersEnabled={true}
         refreshControl={
           <RefreshControl
             refreshing={eventsQuery.isFetching && !eventsQuery.isLoading}
@@ -975,6 +995,32 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 20,
     flexGrow: 1,
+  },
+  sectionHeaderContainer: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: Colors.background,
+    gap: 10,
+  },
+  sectionHeaderLine: {
+    height: 2,
+    width: 20,
+    backgroundColor: Colors.accent,
+    borderRadius: 1,
+  },
+  sectionHeaderText: {
+    fontSize: 16,
+    fontWeight: "700" as const,
+    color: Colors.primary,
+    letterSpacing: -0.2,
+  },
+  sectionHeaderCount: {
+    fontSize: 12,
+    fontWeight: "500" as const,
+    color: Colors.textMuted,
+    marginLeft: "auto" as const,
   },
   emptyContainer: {
     flex: 1,
