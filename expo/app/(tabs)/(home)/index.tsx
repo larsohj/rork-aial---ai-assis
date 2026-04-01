@@ -632,7 +632,7 @@ export default function EventsFeedScreen() {
             <View style={styles.carouselHeader}>
               <View style={styles.carouselTitleRow}>
                 <View style={styles.carouselDot} />
-                <Text style={styles.carouselTitle}>Skjer i dag</Text>
+                <Text style={styles.carouselTitle}>I dag</Text>
               </View>
               <Text style={styles.carouselCount}>{tonightEvents.length}</Text>
             </View>
