@@ -294,11 +294,13 @@ export default function EventsFeedScreen() {
   const renderSectionHeader = useCallback(
     ({ section }: { section: DateSection }) => (
       <View style={styles.sectionHeaderContainer}>
-        <View style={styles.sectionHeaderLine} />
-        <Text style={styles.sectionHeaderText}>{section.title}</Text>
-        <Text style={styles.sectionHeaderCount}>
-          {section.data.length} {section.data.length === 1 ? "arrangement" : "arr."}
-        </Text>
+        <View style={styles.sectionHeaderAccent} />
+        <View style={styles.sectionHeaderContent}>
+          <Text style={styles.sectionHeaderText}>{section.title}</Text>
+          <Text style={styles.sectionHeaderCount}>
+            {section.data.length} {section.data.length === 1 ? "arrangement" : "arrangementer"}
+          </Text>
+        </View>
       </View>
     ),
     []
@@ -999,28 +1001,36 @@ const styles = StyleSheet.create({
   sectionHeaderContainer: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 10,
     backgroundColor: Colors.background,
-    gap: 10,
+    gap: 0,
+    borderTopWidth: 1,
+    borderTopColor: Colors.cardBorder,
+    marginTop: 4,
   },
-  sectionHeaderLine: {
-    height: 2,
-    width: 20,
+  sectionHeaderAccent: {
+    width: 4,
+    height: 36,
     backgroundColor: Colors.accent,
-    borderRadius: 1,
+    borderRadius: 2,
+    marginRight: 12,
+  },
+  sectionHeaderContent: {
+    flex: 1,
   },
   sectionHeaderText: {
-    fontSize: 16,
-    fontWeight: "700" as const,
+    fontSize: 18,
+    fontWeight: "800" as const,
     color: Colors.primary,
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
   },
   sectionHeaderCount: {
     fontSize: 12,
     fontWeight: "500" as const,
     color: Colors.textMuted,
-    marginLeft: "auto" as const,
+    marginTop: 2,
   },
   emptyContainer: {
     flex: 1,
