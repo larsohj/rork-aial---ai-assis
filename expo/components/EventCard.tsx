@@ -7,12 +7,14 @@ import {
   Animated,
 } from "react-native";
 import { Image } from "expo-image";
-import { MapPin, Clock, Film, Music, Palette, Mountain, Baby, Laugh, Ticket, Calendar } from "lucide-react-native";
+import { MapPin, Clock, Film, Music, Palette, Mountain, Baby, Laugh, Ticket, Calendar, Heart } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { EventData } from "@/types/event";
 import { formatEventTime, getRelativeDateLabel, formatEventDate } from "@/lib/dateUtils";
 import { getParentCategory } from "@/constants/tagHierarchy";
+import { useBookmarks } from "@/context/BookmarksContext";
 
 interface EventCardProps {
   event: EventData;
@@ -53,7 +55,10 @@ function CategoryIcon({ categoryKey, size, color }: { categoryKey: string; size:
 function EventCardComponent({ event, compact: _compact }: EventCardProps) {
   const router = useRouter();
   const { colors } = useTheme();
+  const { isBookmarked, toggleBookmark } = useBookmarks();
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const heartScale = useRef(new Animated.Value(1)).current;
+  const bookmarked = isBookmarked(event.source_id);
 
   const onPressIn = useCallback(() => {
     Animated.spring(scaleAnim, {
@@ -76,6 +81,15 @@ function EventCardComponent({ event, compact: _compact }: EventCardProps) {
   const handlePress = useCallback(() => {
     router.push({ pathname: "/event/[id]", params: { id: event.source_id } });
   }, [router, event.source_id]);
+
+  const handleBookmark = useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    toggleBookmark(event.source_id);
+    Animated.sequence([
+      Animated.spring(heartScale, { toValue: 1.3, useNativeDriver: true, speed: 80, bounciness: 12 }),
+      Animated.spring(heartScale, { toValue: 1, useNativeDriver: true, speed: 80, bounciness: 8 }),
+    ]).start();
+  }, [toggleBookmark, event.source_id, heartScale]);
 
   const category = getCategoryForEvent(event.tags ?? []);
   const relativeDate = getRelativeDateLabel(event.start_at);
@@ -134,6 +148,21 @@ function EventCardComponent({ event, compact: _compact }: EventCardProps) {
               <Text style={styles.relativeDateText}>{relativeDate}</Text>
             </View>
           )}
+
+          <Pressable
+            onPress={handleBookmark}
+            style={styles.bookmarkBtn}
+            hitSlop={10}
+            testID={`bookmark-${event.source_id}`}
+          >
+            <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+              <Heart
+                size={20}
+                color={bookmarked ? "#E74C3C" : "#FFFFFF"}
+                fill={bookmarked ? "#E74C3C" : "transparent"}
+              />
+            </Animated.View>
+          </Pressable>
         </View>
 
         <View style={styles.content}>
@@ -219,6 +248,17 @@ const styles = StyleSheet.create({
     flexDirection: "row" as const,
     alignItems: "center" as const,
     gap: 4,
+  },
+  bookmarkBtn: {
+    position: "absolute" as const,
+    bottom: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
   },
   freeBadgeOverlay: {
     position: "absolute" as const,

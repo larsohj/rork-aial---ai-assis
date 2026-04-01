@@ -8,12 +8,14 @@ import {
   Dimensions,
 } from "react-native";
 import { Image } from "expo-image";
-import { Clock, Film, Music, Palette, Mountain, Baby, Laugh, Ticket, Calendar } from "lucide-react-native";
+import { Clock, Film, Music, Palette, Mountain, Baby, Laugh, Ticket, Calendar, Heart } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { EventData } from "@/types/event";
 import { formatEventTime, formatEventDate } from "@/lib/dateUtils";
 import { getParentCategory } from "@/constants/tagHierarchy";
+import { useBookmarks } from "@/context/BookmarksContext";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 export const CAROUSEL_CARD_WIDTH = SCREEN_WIDTH * 0.72;
@@ -57,7 +59,10 @@ interface EventCardCarouselProps {
 function EventCardCarouselComponent({ event }: EventCardCarouselProps) {
   const router = useRouter();
   const { colors } = useTheme();
+  const { isBookmarked, toggleBookmark } = useBookmarks();
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const heartScale = useRef(new Animated.Value(1)).current;
+  const bookmarked = isBookmarked(event.source_id);
 
   const onPressIn = useCallback(() => {
     Animated.spring(scaleAnim, {
@@ -80,6 +85,15 @@ function EventCardCarouselComponent({ event }: EventCardCarouselProps) {
   const handlePress = useCallback(() => {
     router.push({ pathname: "/event/[id]", params: { id: event.source_id } });
   }, [router, event.source_id]);
+
+  const handleBookmark = useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    toggleBookmark(event.source_id);
+    Animated.sequence([
+      Animated.spring(heartScale, { toValue: 1.3, useNativeDriver: true, speed: 80, bounciness: 12 }),
+      Animated.spring(heartScale, { toValue: 1, useNativeDriver: true, speed: 80, bounciness: 8 }),
+    ]).start();
+  }, [toggleBookmark, event.source_id, heartScale]);
 
   const category = getCategoryForEvent(event.tags ?? []);
   const dateStr = formatEventDate(event.start_at);
@@ -122,6 +136,21 @@ function EventCardCarouselComponent({ event }: EventCardCarouselProps) {
           {category && (
             <View style={[styles.categoryDot, { backgroundColor: category.color }]} />
           )}
+
+          <Pressable
+            onPress={handleBookmark}
+            style={styles.bookmarkBtn}
+            hitSlop={8}
+            testID={`carousel-bookmark-${event.source_id}`}
+          >
+            <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+              <Heart
+                size={16}
+                color={bookmarked ? "#E74C3C" : "#FFFFFF"}
+                fill={bookmarked ? "#E74C3C" : "transparent"}
+              />
+            </Animated.View>
+          </Pressable>
         </View>
 
         <View style={styles.content}>
@@ -183,6 +212,17 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "800" as const,
     color: "#FFF",
+  },
+  bookmarkBtn: {
+    position: "absolute" as const,
+    bottom: 8,
+    right: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
   },
   categoryDot: {
     position: "absolute" as const,

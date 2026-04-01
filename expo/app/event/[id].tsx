@@ -22,19 +22,24 @@ import {
   Banknote,
   ArrowLeft,
   Calendar,
+  Heart,
 } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "@/context/ThemeContext";
 import { EventData } from "@/types/event";
 import { fetchEvents } from "@/lib/events";
 import { formatFullDate, formatEventTime } from "@/lib/dateUtils";
+import { useBookmarks } from "@/context/BookmarksContext";
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const { isBookmarked, toggleBookmark } = useBookmarks();
   const buttonScale = useRef(new Animated.Value(1)).current;
+  const heartScale = useRef(new Animated.Value(1)).current;
 
   const eventsQuery = useQuery({
     queryKey: ["events"],
@@ -65,6 +70,18 @@ export default function EventDetailScreen() {
       speed: 50,
     }).start();
   }, [buttonScale]);
+
+  const handleBookmark = useCallback(() => {
+    if (!id) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    toggleBookmark(id);
+    Animated.sequence([
+      Animated.spring(heartScale, { toValue: 1.3, useNativeDriver: true, speed: 80, bounciness: 12 }),
+      Animated.spring(heartScale, { toValue: 1, useNativeDriver: true, speed: 80, bounciness: 8 }),
+    ]).start();
+  }, [id, toggleBookmark, heartScale]);
+
+  const bookmarked = id ? isBookmarked(id) : false;
 
   const openMaps = useCallback(() => {
     if (!event) return;
@@ -137,6 +154,21 @@ export default function EventDetailScreen() {
           hitSlop={12}
         >
           <ArrowLeft size={22} color={colors.white} />
+        </Pressable>
+
+        <Pressable
+          style={[styles.bookmarkNav, { top: insets.top + 8 }]}
+          onPress={handleBookmark}
+          hitSlop={12}
+          testID="detail-bookmark"
+        >
+          <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+            <Heart
+              size={22}
+              color={bookmarked ? "#E74C3C" : colors.white}
+              fill={bookmarked ? "#E74C3C" : "transparent"}
+            />
+          </Animated.View>
         </Pressable>
 
         <View style={styles.contentContainer}>
@@ -314,6 +346,17 @@ const styles = StyleSheet.create({
   backNav: {
     position: "absolute" as const,
     left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(27, 58, 75, 0.6)",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    zIndex: 10,
+  },
+  bookmarkNav: {
+    position: "absolute" as const,
+    right: 16,
     width: 40,
     height: 40,
     borderRadius: 20,

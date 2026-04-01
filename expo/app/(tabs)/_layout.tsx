@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Calendar, Info } from "lucide-react-native";
+import { Calendar, Info, Heart } from "lucide-react-native";
 import React from "react";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -22,6 +22,13 @@ export default function TabLayout() {
         options={{
           title: "Arrangementer",
           tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="saved"
+        options={{
+          title: "Lagret",
+          tabBarIcon: ({ color, size }) => <Heart size={size} color={color} />,
         }}
       />
       <Tabs.Screen

@@ -4,6 +4,7 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
+import { BookmarksProvider } from "@/context/BookmarksContext";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -36,9 +37,11 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <GestureHandlerRootView>
-          <RootLayoutNav />
-        </GestureHandlerRootView>
+        <BookmarksProvider>
+          <GestureHandlerRootView>
+            <RootLayoutNav />
+          </GestureHandlerRootView>
+        </BookmarksProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
