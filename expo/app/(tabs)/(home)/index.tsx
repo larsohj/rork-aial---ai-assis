@@ -4,7 +4,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TextInput,
+  SectionList,
   Pressable,
   RefreshControl,
   Animated,
@@ -12,17 +12,9 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
-import { FlashList as RawFlashList } from "@shopify/flash-list";
-
-// FlashList v2 types are incompatible with React 19 JSX types at compile time
-// Runtime behavior is correct - this is a type-level workaround
-const FlashListTyped = RawFlashList as unknown as typeof FlatList & {
-  defaultProps?: { estimatedItemSize?: number };
-};
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  Search,
   X,
   CalendarDays,
   Calendar,
@@ -118,7 +110,6 @@ function TabIcon({ icon, size, color }: { icon: string; size: number; color: str
 export default function EventsFeedScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const [search, setSearch] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedSubTags, setSelectedSubTags] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState<DateFilterType>("all");
@@ -183,17 +174,6 @@ export default function EventsFeedScreen() {
     const events = eventsQuery.data ?? [];
     let filtered = events;
 
-    if (search.trim()) {
-      const q = search.toLowerCase().trim();
-      filtered = filtered.filter(
-        (e) =>
-          e.title.toLowerCase().includes(q) ||
-          e.location_name?.toLowerCase().includes(q) ||
-          e.organizer?.toLowerCase().includes(q) ||
-          e.description?.toLowerCase().includes(q)
-      );
-    }
-
     if (selectedCategory !== "all") {
       const cat = TAG_HIERARCHY.find((c) => c.key === selectedCategory);
       if (cat) {
@@ -255,7 +235,7 @@ export default function EventsFeedScreen() {
     }
 
     return filtered;
-  }, [eventsQuery.data, search, selectedCategory, selectedSubTags, selectedAreas, showFreeOnly, dateFilter, customRange]);
+  }, [eventsQuery.data, selectedCategory, selectedSubTags, selectedAreas, showFreeOnly, dateFilter, customRange]);
 
   const selectCategory = useCallback((key: string) => {
     setSelectedCategory(key);
@@ -276,10 +256,6 @@ export default function EventsFeedScreen() {
 
   const toggleFreeOnly = useCallback(() => {
     setShowFreeOnly((prev) => !prev);
-  }, []);
-
-  const clearSearch = useCallback(() => {
-    setSearch("");
   }, []);
 
   const onRefresh = useCallback(() => {
@@ -359,9 +335,8 @@ export default function EventsFeedScreen() {
     if (selectedAreas.length > 0) count += selectedAreas.length;
     if (showFreeOnly) count += 1;
     if (dateFilter !== "all") count += 1;
-    if (search.trim()) count += 1;
     return count;
-  }, [selectedCategory, selectedSubTags, selectedAreas, showFreeOnly, dateFilter, search]);
+  }, [selectedCategory, selectedSubTags, selectedAreas, showFreeOnly, dateFilter]);
 
   const clearAllFilters = useCallback(() => {
     setSelectedCategory("all");
@@ -370,12 +345,11 @@ export default function EventsFeedScreen() {
     setShowFreeOnly(false);
     setDateFilter("all");
     setCustomRange({ from: null, to: null });
-    setSearch("");
   }, []);
 
   const hasActiveFilters = useMemo(() => {
-    return search.trim().length > 0 || selectedCategory !== "all" || selectedSubTags.length > 0 || selectedAreas.length > 0 || showFreeOnly || dateFilter !== "all";
-  }, [search, selectedCategory, selectedSubTags, selectedAreas, showFreeOnly, dateFilter]);
+    return selectedCategory !== "all" || selectedSubTags.length > 0 || selectedAreas.length > 0 || showFreeOnly || dateFilter !== "all";
+  }, [selectedCategory, selectedSubTags, selectedAreas, showFreeOnly, dateFilter]);
 
   const tonightEvents = useMemo(() => {
     const events = eventsQuery.data ?? [];
@@ -412,43 +386,31 @@ export default function EventsFeedScreen() {
     extrapolate: "clamp",
   });
 
-  type ListItem =
-    | { type: "section-header"; title: string; count: number; key: string }
-    | { type: "event"; event: EventData; key: string };
-
-  const listData = useMemo(() => {
-    const sections = groupEventsByDate(filteredEvents);
-    const items: ListItem[] = [];
-    for (const section of sections) {
-      items.push({ type: "section-header", title: section.title, count: section.data.length, key: `header-${section.title}` });
-      for (const event of section.data) {
-        items.push({ type: "event", event, key: event.source_id });
-      }
-    }
-    return items;
+  const sectionData = useMemo(() => {
+    return groupEventsByDate(filteredEvents);
   }, [filteredEvents]);
 
-  const renderItem = useCallback(
-    ({ item }: { item: ListItem }) => {
-      if (item.type === "section-header") {
-        return (
-          <View style={[styles.sectionHeaderContainer, { backgroundColor: colors.background, borderTopColor: colors.cardBorder }]}>
-            <View style={[styles.sectionHeaderAccent, { backgroundColor: colors.accent }]} />
-            <View style={styles.sectionHeaderContent}>
-              <Text style={[styles.sectionHeaderText, { color: colors.primary }]}>{item.title}</Text>
-              <Text style={[styles.sectionHeaderCount, { color: colors.textMuted }]}>
-                {item.count} {item.count === 1 ? "arrangement" : "arrangementer"}
-              </Text>
-            </View>
-          </View>
-        );
-      }
-      return <EventCard event={item.event} />;
-    },
+  const renderSectionHeader = useCallback(
+    ({ section }: { section: { title: string; data: EventData[] } }) => (
+      <View style={[styles.sectionHeaderContainer, { backgroundColor: colors.background, borderTopColor: colors.cardBorder }]}>
+        <View style={[styles.sectionHeaderAccent, { backgroundColor: colors.accent }]} />
+        <View style={styles.sectionHeaderContent}>
+          <Text style={[styles.sectionHeaderText, { color: colors.primary }]}>{section.title}</Text>
+          <Text style={[styles.sectionHeaderCount, { color: colors.textMuted }]}>
+            {section.data.length} {section.data.length === 1 ? "arrangement" : "arrangementer"}
+          </Text>
+        </View>
+      </View>
+    ),
     [colors]
   );
 
-  const keyExtractor = useCallback((item: ListItem) => item.key, []);
+  const renderItem = useCallback(
+    ({ item }: { item: EventData }) => <EventCard event={item} />,
+    []
+  );
+
+  const keyExtractor = useCallback((item: EventData) => item.source_id, []);
 
   const dateFilterLabel = useMemo(() => {
     if (dateFilter === "custom" && customRange.from && customRange.to) {
@@ -481,25 +443,6 @@ export default function EventsFeedScreen() {
   const renderHeader = useMemo(
     () => (
       <View>
-        <View style={styles.searchContainer}>
-          <View style={[styles.searchBar, { backgroundColor: colors.searchBar, borderColor: colors.cardBorder }]}>
-            <Search size={18} color={colors.textMuted} />
-            <TextInput
-              style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Søk etter arrangementer..."
-              placeholderTextColor={colors.textMuted}
-              value={search}
-              onChangeText={setSearch}
-              testID="search-input"
-            />
-            {search.length > 0 && (
-              <Pressable onPress={clearSearch} hitSlop={8}>
-                <X size={18} color={colors.textSecondary} />
-              </Pressable>
-            )}
-          </View>
-        </View>
-
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -696,7 +639,7 @@ export default function EventsFeedScreen() {
         </View>
       </View>
     ),
-    [search, categoryTabs, selectedCategory, selectedSubTags, availableSubTags, showFreeOnly, filteredEvents.length, dateFilter, dateFilterLabel, activeFiltersCount, advancedFilterCount, hasActiveFilters, tonightEvents, weekendEvents, clearSearch, selectCategory, toggleSubTag, toggleFreeOnly, selectDateFilter, clearAllFilters, colors]
+    [categoryTabs, selectedCategory, selectedSubTags, availableSubTags, showFreeOnly, filteredEvents.length, dateFilter, dateFilterLabel, activeFiltersCount, advancedFilterCount, hasActiveFilters, tonightEvents, weekendEvents, selectCategory, toggleSubTag, toggleFreeOnly, selectDateFilter, clearAllFilters, colors]
   );
 
   const renderEmpty = useMemo(() => {
@@ -720,13 +663,13 @@ export default function EventsFeedScreen() {
         <CalendarDays size={48} color={colors.textMuted} />
         <Text style={[styles.emptyTitle, { color: colors.text }]}>Ingen treff</Text>
         <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-          {search || selectedCategory !== "all" || dateFilter !== "all"
-            ? "Prøv å endre søket eller filteret ditt"
+          {selectedCategory !== "all" || dateFilter !== "all"
+            ? "Prøv å endre filteret ditt"
             : "Det er ingen kommende arrangementer akkurat nå"}
         </Text>
       </View>
     );
-  }, [eventsQuery.isError, eventsQuery.error, search, selectedCategory, dateFilter, onRefresh, colors]);
+  }, [eventsQuery.isError, eventsQuery.error, selectedCategory, dateFilter, onRefresh, colors]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
@@ -740,17 +683,16 @@ export default function EventsFeedScreen() {
           <SkeletonFeed />
         </ScrollView>
       ) : (
-      <FlashListTyped
-        data={listData}
+      <SectionList
+        sections={sectionData}
         renderItem={renderItem}
+        renderSectionHeader={renderSectionHeader}
         keyExtractor={keyExtractor}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
-        contentContainerStyle={{ paddingBottom: 20 } as any}
+        contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        // @ts-expect-error FlashList-specific prop not in FlatList types
-        estimatedItemSize={300}
-        getItemType={(item: ListItem) => item.type}
+        stickySectionHeadersEnabled={true}
         refreshControl={
           <RefreshControl
             refreshing={eventsQuery.isFetching && !eventsQuery.isLoading}
@@ -969,30 +911,6 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 14,
     marginTop: 2,
-  },
-  searchContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  searchBar: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 10,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 1,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    padding: 0,
   },
   categoryTabsScroll: {
     marginBottom: 4,
