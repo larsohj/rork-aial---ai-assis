@@ -11,15 +11,33 @@ import {
   ActivityIndicator,
   Modal,
   Platform,
+  ScrollView,
 } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Search, X, CalendarDays, Calendar, ChevronDown, ChevronRight, Check, MapPin, Ticket, Film, Music, Palette, Mountain, Baby, Laugh } from "lucide-react-native";
+import {
+  Search,
+  X,
+  CalendarDays,
+  Calendar,
+  ChevronDown,
+  Check,
+  MapPin,
+  Ticket,
+  Film,
+  Music,
+  Palette,
+  Mountain,
+  Baby,
+  Laugh,
+  SlidersHorizontal,
+  Sparkles,
+} from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { EventData } from "@/types/event";
 import { fetchEvents, fetchAllTags } from "@/lib/events";
 import { EventCard } from "@/components/EventCard";
-import { TAG_HIERARCHY, TagCategory, isOrphanTag } from "@/constants/tagHierarchy";
+import { TAG_HIERARCHY } from "@/constants/tagHierarchy";
 import { AREAS, getEventArea } from "@/constants/areaMapping";
 import { groupEventsByDate } from "@/lib/dateUtils";
 
@@ -68,15 +86,37 @@ function isInRange(date: Date, from: Date | null, to: Date | null): boolean {
   return d > f && d < t;
 }
 
+interface CategoryTab {
+  key: string;
+  label: string;
+  icon: string;
+}
+
+const ALL_TAB: CategoryTab = { key: "all", label: "Alt", icon: "sparkles" };
+
+function TabIcon({ icon, size, color }: { icon: string; size: number; color: string }) {
+  switch (icon) {
+    case "sparkles": return <Sparkles size={size} color={color} />;
+    case "film": return <Film size={size} color={color} />;
+    case "music": return <Music size={size} color={color} />;
+    case "palette": return <Palette size={size} color={color} />;
+    case "mountain": return <Mountain size={size} color={color} />;
+    case "baby": return <Baby size={size} color={color} />;
+    case "laugh": return <Laugh size={size} color={color} />;
+    default: return <Sparkles size={size} color={color} />;
+  }
+}
+
 export default function EventsFeedScreen() {
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState<string>("");
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedSubTags, setSelectedSubTags] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState<DateFilterType>("all");
   const [customRange, setCustomRange] = useState<DateRange>({ from: null, to: null });
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
   const [showFreeOnly, setShowFreeOnly] = useState<boolean>(false);
+  const [showFilterSheet, setShowFilterSheet] = useState<boolean>(false);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [pickerMonth, setPickerMonth] = useState<number>(new Date().getMonth());
   const [pickerYear, setPickerYear] = useState<number>(new Date().getFullYear());
@@ -107,6 +147,29 @@ export default function EventsFeedScreen() {
     return AREAS.filter((a) => areaSet.has(a.key));
   }, [eventsQuery.data]);
 
+  const availableTagsSet = useMemo(() => new Set(tags), [tags]);
+
+  const categoryTabs = useMemo((): CategoryTab[] => {
+    const tabs: CategoryTab[] = [ALL_TAB];
+    for (const cat of TAG_HIERARCHY) {
+      const hasAvailable = cat.children.some((t) => availableTagsSet.has(t));
+      if (hasAvailable) {
+        tabs.push({ key: cat.key, label: cat.label, icon: cat.icon });
+      }
+    }
+    return tabs;
+  }, [availableTagsSet]);
+
+  const selectedCategoryObj = useMemo(() => {
+    if (selectedCategory === "all") return null;
+    return TAG_HIERARCHY.find((c) => c.key === selectedCategory) ?? null;
+  }, [selectedCategory]);
+
+  const availableSubTags = useMemo(() => {
+    if (!selectedCategoryObj) return [];
+    return selectedCategoryObj.children.filter((t) => availableTagsSet.has(t));
+  }, [selectedCategoryObj, availableTagsSet]);
+
   const filteredEvents = useMemo(() => {
     const events = eventsQuery.data ?? [];
     let filtered = events;
@@ -122,10 +185,20 @@ export default function EventsFeedScreen() {
       );
     }
 
-    if (selectedTags.length > 0) {
-      filtered = filtered.filter((e) =>
-        selectedTags.some((tag) => e.tags?.includes(tag))
-      );
+    if (selectedCategory !== "all") {
+      const cat = TAG_HIERARCHY.find((c) => c.key === selectedCategory);
+      if (cat) {
+        const catTags = cat.children;
+        if (selectedSubTags.length > 0) {
+          filtered = filtered.filter((e) =>
+            selectedSubTags.some((tag) => e.tags?.includes(tag))
+          );
+        } else {
+          filtered = filtered.filter((e) =>
+            catTags.some((tag) => e.tags?.includes(tag))
+          );
+        }
+      }
     }
 
     if (selectedAreas.length > 0) {
@@ -173,30 +246,17 @@ export default function EventsFeedScreen() {
     }
 
     return filtered;
-  }, [eventsQuery.data, search, selectedTags, selectedAreas, showFreeOnly, dateFilter, customRange]);
+  }, [eventsQuery.data, search, selectedCategory, selectedSubTags, selectedAreas, showFreeOnly, dateFilter, customRange]);
 
-  const toggleTag = useCallback((tag: string) => {
-    setSelectedTags((prev) =>
+  const selectCategory = useCallback((key: string) => {
+    setSelectedCategory(key);
+    setSelectedSubTags([]);
+  }, []);
+
+  const toggleSubTag = useCallback((tag: string) => {
+    setSelectedSubTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     );
-  }, []);
-
-  const toggleCategory = useCallback((cat: TagCategory) => {
-    setExpandedCategories((prev) =>
-      prev.includes(cat.key) ? prev.filter((k) => k !== cat.key) : [...prev, cat.key]
-    );
-  }, []);
-
-  const toggleCategoryAll = useCallback((cat: TagCategory, availableChildren: string[]) => {
-    setSelectedTags((prev) => {
-      const allSelected = availableChildren.every((t) => prev.includes(t));
-      if (allSelected) {
-        return prev.filter((t) => !availableChildren.includes(t));
-      } else {
-        const newTags = new Set([...prev, ...availableChildren]);
-        return [...newTags];
-      }
-    });
   }, []);
 
   const toggleArea = useCallback((areaKey: string) => {
@@ -276,6 +336,34 @@ export default function EventsFeedScreen() {
     }
   }, [pickerMonth]);
 
+  const advancedFilterCount = useMemo(() => {
+    let count = 0;
+    if (selectedAreas.length > 0) count += selectedAreas.length;
+    if (dateFilter === "custom") count += 1;
+    return count;
+  }, [selectedAreas, dateFilter]);
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedCategory !== "all") count += 1;
+    if (selectedSubTags.length > 0) count += selectedSubTags.length;
+    if (selectedAreas.length > 0) count += selectedAreas.length;
+    if (showFreeOnly) count += 1;
+    if (dateFilter !== "all") count += 1;
+    if (search.trim()) count += 1;
+    return count;
+  }, [selectedCategory, selectedSubTags, selectedAreas, showFreeOnly, dateFilter, search]);
+
+  const clearAllFilters = useCallback(() => {
+    setSelectedCategory("all");
+    setSelectedSubTags([]);
+    setSelectedAreas([]);
+    setShowFreeOnly(false);
+    setDateFilter("all");
+    setCustomRange({ from: null, to: null });
+    setSearch("");
+  }, []);
+
   const headerOpacity = scrollY.interpolate({
     inputRange: [0, 60],
     outputRange: [1, 0.95],
@@ -288,7 +376,6 @@ export default function EventsFeedScreen() {
 
   const listData = useMemo(() => {
     const sections = groupEventsByDate(filteredEvents);
-    console.log('[EventsFeed] sections count:', sections.length, 'titles:', sections.map(s => s.title));
     const items: ListItem[] = [];
     for (const section of sections) {
       items.push({ type: "section-header", title: section.title, count: section.data.length, key: `header-${section.title}` });
@@ -328,52 +415,6 @@ export default function EventsFeedScreen() {
     return null;
   }, [dateFilter, customRange]);
 
-  const activeFiltersCount = useMemo(() => {
-    let count = 0;
-    if (selectedTags.length > 0) count += selectedTags.length;
-    if (selectedAreas.length > 0) count += selectedAreas.length;
-    if (showFreeOnly) count += 1;
-    if (dateFilter !== "all") count += 1;
-    if (search.trim()) count += 1;
-    return count;
-  }, [selectedTags, selectedAreas, showFreeOnly, dateFilter, search]);
-
-  const clearAllFilters = useCallback(() => {
-    setSelectedTags([]);
-    setSelectedAreas([]);
-    setShowFreeOnly(false);
-    setDateFilter("all");
-    setCustomRange({ from: null, to: null });
-    setSearch("");
-    setExpandedCategories([]);
-  }, []);
-
-  const categoryIcon = useCallback((iconName: string, color: string) => {
-    const size = 16;
-    switch (iconName) {
-      case "film": return <Film size={size} color={color} />;
-      case "music": return <Music size={size} color={color} />;
-      case "palette": return <Palette size={size} color={color} />;
-      case "mountain": return <Mountain size={size} color={color} />;
-      case "baby": return <Baby size={size} color={color} />;
-      case "laugh": return <Laugh size={size} color={color} />;
-      default: return null;
-    }
-  }, []);
-
-  const availableTagsSet = useMemo(() => new Set(tags), [tags]);
-
-  const categoriesWithAvailable = useMemo(() => {
-    return TAG_HIERARCHY.map((cat) => {
-      const available = cat.children.filter((t) => availableTagsSet.has(t));
-      return { ...cat, availableChildren: available };
-    }).filter((cat) => cat.availableChildren.length > 0);
-  }, [availableTagsSet]);
-
-  const orphanTags = useMemo(() => {
-    return tags.filter((t) => isOrphanTag(t) && t !== "utsolgt" && t !== "få billetter igjen");
-  }, [tags]);
-
   const monthNames = ["Januar", "Februar", "Mars", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Desember"];
   const dayLabels = ["Ma", "Ti", "On", "To", "Fr", "Lø", "Sø"];
 
@@ -387,6 +428,13 @@ export default function EventsFeedScreen() {
     while (cells.length % 7 !== 0) cells.push(null);
     return cells;
   }, [pickerYear, pickerMonth]);
+
+  const todayLabel = useMemo(() => {
+    const now = new Date();
+    const options = { weekday: "long" as const, day: "numeric" as const, month: "long" as const };
+    const formatted = now.toLocaleDateString("nb-NO", options);
+    return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+  }, []);
 
   const renderHeader = useMemo(
     () => (
@@ -410,191 +458,140 @@ export default function EventsFeedScreen() {
           </View>
         </View>
 
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryTabsContent}
+          style={styles.categoryTabsScroll}
+        >
+          {categoryTabs.map((tab) => {
+            const isActive = selectedCategory === tab.key;
+            const colorSet = tab.key === "all"
+              ? { bg: Colors.accentMuted, text: Colors.accent, activeBg: Colors.accent }
+              : (Colors.categoryColors[tab.key] ?? Colors.categoryColors.annet);
+            return (
+              <Pressable
+                key={tab.key}
+                onPress={() => selectCategory(tab.key)}
+                style={[
+                  styles.categoryTab,
+                  {
+                    backgroundColor: isActive ? colorSet.activeBg : Colors.white,
+                    borderColor: isActive ? colorSet.activeBg : Colors.cardBorder,
+                  },
+                ]}
+                testID={`tab-${tab.key}`}
+              >
+                <TabIcon
+                  icon={tab.icon}
+                  size={15}
+                  color={isActive ? Colors.white : colorSet.text}
+                />
+                <Text
+                  style={[
+                    styles.categoryTabText,
+                    { color: isActive ? Colors.white : colorSet.text },
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {availableSubTags.length > 1 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.subTagsScrollContent}
+            style={styles.subTagsScroll}
+          >
+            {availableSubTags.map((tag) => {
+              const isSelected = selectedSubTags.includes(tag);
+              const colorSet = Colors.categoryColors[selectedCategory] ?? Colors.categoryColors.annet;
+              return (
+                <Pressable
+                  key={tag}
+                  onPress={() => toggleSubTag(tag)}
+                  style={[
+                    styles.subTagChip,
+                    {
+                      backgroundColor: isSelected ? colorSet.activeBg : colorSet.bg,
+                      borderColor: isSelected ? colorSet.activeBg : "transparent",
+                    },
+                  ]}
+                  testID={`subtag-${tag}`}
+                >
+                  <Text
+                    style={[
+                      styles.subTagChipText,
+                      { color: isSelected ? Colors.white : colorSet.text },
+                    ]}
+                  >
+                    {tag.charAt(0).toUpperCase() + tag.slice(1)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
+
         <View style={styles.quickFiltersRow}>
+          <Pressable
+            onPress={() => selectDateFilter("today")}
+            style={[styles.quickChip, dateFilter === "today" && styles.quickChipDateActive]}
+            testID="filter-today"
+          >
+            <Text style={[styles.quickChipText, { color: dateFilter === "today" ? Colors.white : Colors.primary }]}>I dag</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => selectDateFilter("weekend")}
+            style={[styles.quickChip, dateFilter === "weekend" && styles.quickChipDateActive]}
+            testID="filter-weekend"
+          >
+            <Text style={[styles.quickChipText, { color: dateFilter === "weekend" ? Colors.white : Colors.primary }]}>I helgen</Text>
+          </Pressable>
           <Pressable
             onPress={toggleFreeOnly}
             style={[styles.quickChip, showFreeOnly && styles.quickChipFreeActive]}
             testID="filter-free"
           >
-            <Ticket size={14} color={showFreeOnly ? Colors.white : Colors.free} />
+            <Ticket size={13} color={showFreeOnly ? Colors.white : Colors.free} />
             <Text style={[styles.quickChipText, { color: showFreeOnly ? Colors.white : Colors.free }]}>Gratis</Text>
           </Pressable>
 
-          {availableAreas.map((area) => {
-            const isSelected = selectedAreas.includes(area.key);
-            return (
-              <Pressable
-                key={area.key}
-                onPress={() => toggleArea(area.key)}
-                style={[styles.quickChip, isSelected && styles.quickChipCityActive]}
-                testID={`filter-area-${area.key}`}
-              >
-                <MapPin size={14} color={isSelected ? Colors.white : Colors.primaryLight} />
-                <Text style={[styles.quickChipText, { color: isSelected ? Colors.white : Colors.primaryLight }]}>{area.label}</Text>
+          {dateFilter === "custom" && dateFilterLabel && (
+            <View style={[styles.quickChip, styles.quickChipDateActive]}>
+              <Calendar size={12} color={Colors.white} />
+              <Text style={[styles.quickChipText, { color: Colors.white }]}>{dateFilterLabel}</Text>
+              <Pressable onPress={() => { setDateFilter("all"); setCustomRange({ from: null, to: null }); }} hitSlop={8}>
+                <X size={12} color={Colors.white} />
               </Pressable>
-            );
-          })}
-        </View>
+            </View>
+          )}
 
-        <View style={styles.dateFiltersRow}>
-          <Pressable
-            onPress={() => selectDateFilter("today")}
-            style={[styles.dateChip, dateFilter === "today" && styles.dateChipActive]}
-            testID="filter-today"
-          >
-            <Text style={[styles.dateChipText, dateFilter === "today" && styles.dateChipTextActive]}>I dag</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => selectDateFilter("weekend")}
-            style={[styles.dateChip, dateFilter === "weekend" && styles.dateChipActive]}
-            testID="filter-weekend"
-          >
-            <Text style={[styles.dateChipText, dateFilter === "weekend" && styles.dateChipTextActive]}>I helgen</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => selectDateFilter("custom")}
-            style={[styles.dateChip, dateFilter === "custom" && styles.dateChipActive]}
-            testID="filter-custom-date"
-          >
-            <Calendar size={14} color={dateFilter === "custom" ? Colors.white : Colors.primary} />
-            <Text style={[styles.dateChipText, dateFilter === "custom" && styles.dateChipTextActive]}>
-              {dateFilterLabel ?? "Velg dato"}
-            </Text>
-            <ChevronDown size={12} color={dateFilter === "custom" ? Colors.white : Colors.textMuted} />
-          </Pressable>
-          {dateFilter !== "all" && (
-            <Pressable onPress={() => setDateFilter("all")} style={styles.clearDateChip} hitSlop={6}>
-              <X size={14} color={Colors.textSecondary} />
+          {dateFilter !== "all" && dateFilter !== "custom" && (
+            <Pressable onPress={() => setDateFilter("all")} style={styles.clearChipBtn} hitSlop={6}>
+              <X size={13} color={Colors.textSecondary} />
             </Pressable>
           )}
+
+          <View style={{ flex: 1 }} />
+
+          <Pressable
+            onPress={() => setShowFilterSheet(true)}
+            style={[styles.filterBtn, advancedFilterCount > 0 && styles.filterBtnActive]}
+            testID="filter-advanced"
+          >
+            <SlidersHorizontal size={16} color={advancedFilterCount > 0 ? Colors.white : Colors.primary} />
+            {advancedFilterCount > 0 && (
+              <View style={styles.filterBtnBadge}>
+                <Text style={styles.filterBtnBadgeText}>{advancedFilterCount}</Text>
+              </View>
+            )}
+          </Pressable>
         </View>
-
-        {categoriesWithAvailable.length > 0 && (
-          <View style={styles.categoriesContainer}>
-            {categoriesWithAvailable.map((cat) => {
-              const isExpanded = expandedCategories.includes(cat.key);
-              const colorSet = Colors.categoryColors[cat.key] ?? Colors.categoryColors.annet;
-              const selectedChildCount = cat.availableChildren.filter((t) => selectedTags.includes(t)).length;
-              const allChildrenSelected = selectedChildCount === cat.availableChildren.length && selectedChildCount > 0;
-
-              return (
-                <View key={cat.key} style={styles.categoryBlock}>
-                  <Pressable
-                    onPress={() => {
-                      if (cat.availableChildren.length <= 1) {
-                        toggleCategoryAll(cat, cat.availableChildren);
-                      } else {
-                        toggleCategory(cat);
-                      }
-                    }}
-                    style={[
-                      styles.categoryHeader,
-                      {
-                        backgroundColor: allChildrenSelected ? colorSet.activeBg : (selectedChildCount > 0 ? colorSet.bg : Colors.white),
-                        borderColor: selectedChildCount > 0 ? colorSet.activeBg : Colors.cardBorder,
-                      },
-                    ]}
-                    testID={`category-${cat.key}`}
-                  >
-                    {categoryIcon(cat.icon, allChildrenSelected ? Colors.white : colorSet.text)}
-                    <Text
-                      style={[
-                        styles.categoryHeaderText,
-                        { color: allChildrenSelected ? Colors.white : colorSet.text },
-                      ]}
-                    >
-                      {cat.label}
-                    </Text>
-                    {selectedChildCount > 0 && !allChildrenSelected && (
-                      <View style={[styles.categoryBadge, { backgroundColor: colorSet.activeBg }]}>
-                        <Text style={styles.categoryBadgeText}>{selectedChildCount}</Text>
-                      </View>
-                    )}
-                    {cat.availableChildren.length > 1 && (
-                      <View style={styles.chevronWrap}>
-                        {isExpanded ? (
-                          <ChevronDown size={14} color={allChildrenSelected ? Colors.white : Colors.textMuted} />
-                        ) : (
-                          <ChevronRight size={14} color={allChildrenSelected ? Colors.white : Colors.textMuted} />
-                        )}
-                      </View>
-                    )}
-                  </Pressable>
-
-                  {isExpanded && cat.availableChildren.length > 1 && (
-                    <View style={styles.subTagsWrap}>
-                      <Pressable
-                        onPress={() => toggleCategoryAll(cat, cat.availableChildren)}
-                        style={[
-                          styles.subTagPill,
-                          {
-                            backgroundColor: allChildrenSelected ? colorSet.activeBg : colorSet.bg,
-                            borderColor: colorSet.activeBg,
-                            borderWidth: 1,
-                          },
-                        ]}
-                        testID={`tag-${cat.key}-all`}
-                      >
-                        <Text style={[styles.subTagText, { color: allChildrenSelected ? Colors.white : colorSet.text }]}>
-                          Alle
-                        </Text>
-                      </Pressable>
-                      {cat.availableChildren.map((tag) => {
-                        const isSelected = selectedTags.includes(tag);
-                        return (
-                          <Pressable
-                            key={tag}
-                            onPress={() => toggleTag(tag)}
-                            style={[
-                              styles.subTagPill,
-                              {
-                                backgroundColor: isSelected ? colorSet.activeBg : colorSet.bg,
-                              },
-                            ]}
-                            testID={`tag-${tag}`}
-                          >
-                            <Text style={[styles.subTagText, { color: isSelected ? Colors.white : colorSet.text }]}>
-                              {tag}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-
-            {orphanTags.map((tag) => {
-              const isSelected = selectedTags.includes(tag);
-              const colorSet = Colors.categoryColors.annet;
-              return (
-                <View key={tag} style={styles.categoryBlock}>
-                  <Pressable
-                    onPress={() => toggleTag(tag)}
-                    style={[
-                      styles.categoryHeader,
-                      {
-                        backgroundColor: isSelected ? colorSet.activeBg : Colors.white,
-                        borderColor: isSelected ? colorSet.activeBg : Colors.cardBorder,
-                      },
-                    ]}
-                    testID={`tag-${tag}`}
-                  >
-                    <Text
-                      style={[
-                        styles.categoryHeaderText,
-                        { color: isSelected ? Colors.white : colorSet.text },
-                      ]}
-                    >
-                      {tag.charAt(0).toUpperCase() + tag.slice(1)}
-                    </Text>
-                  </Pressable>
-                </View>
-              );
-            })}
-          </View>
-        )}
 
         <View style={styles.resultRow}>
           <Text style={styles.resultCountText}>
@@ -608,7 +605,7 @@ export default function EventsFeedScreen() {
         </View>
       </View>
     ),
-    [search, categoriesWithAvailable, orphanTags, selectedTags, expandedCategories, availableAreas, selectedAreas, showFreeOnly, filteredEvents.length, dateFilter, dateFilterLabel, activeFiltersCount, clearSearch, toggleTag, toggleCategory, toggleCategoryAll, categoryIcon, toggleArea, toggleFreeOnly, selectDateFilter, clearAllFilters]
+    [search, categoryTabs, selectedCategory, selectedSubTags, availableSubTags, showFreeOnly, filteredEvents.length, dateFilter, dateFilterLabel, activeFiltersCount, advancedFilterCount, clearSearch, selectCategory, toggleSubTag, toggleFreeOnly, selectDateFilter, clearAllFilters]
   );
 
   const renderEmpty = useMemo(() => {
@@ -641,21 +638,13 @@ export default function EventsFeedScreen() {
         <CalendarDays size={48} color={Colors.textMuted} />
         <Text style={styles.emptyTitle}>Ingen treff</Text>
         <Text style={styles.emptyText}>
-          {search || selectedTags.length > 0 || dateFilter !== "all"
+          {search || selectedCategory !== "all" || dateFilter !== "all"
             ? "Prøv å endre søket eller filteret ditt"
             : "Det er ingen kommende arrangementer akkurat nå"}
-
         </Text>
       </View>
     );
-  }, [eventsQuery.isLoading, eventsQuery.isError, eventsQuery.error, search, selectedTags.length, dateFilter, onRefresh]);
-
-  const todayLabel = useMemo(() => {
-    const now = new Date();
-    const options = { weekday: "long" as const, day: "numeric" as const, month: "long" as const };
-    const formatted = now.toLocaleDateString("nb-NO", options);
-    return formatted.charAt(0).toUpperCase() + formatted.slice(1);
-  }, []);
+  }, [eventsQuery.isLoading, eventsQuery.isError, eventsQuery.error, search, selectedCategory, dateFilter, onRefresh]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -686,6 +675,85 @@ export default function EventsFeedScreen() {
         )}
         scrollEventThrottle={16}
       />
+
+      <Modal
+        visible={showFilterSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowFilterSheet(false)}
+      >
+        <Pressable style={styles.sheetOverlay} onPress={() => setShowFilterSheet(false)}>
+          <View />
+        </Pressable>
+        <View style={[styles.sheetContainer, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={styles.sheetHandle} />
+          <Text style={styles.sheetTitle}>Filtre</Text>
+
+          <Text style={styles.sheetSectionLabel}>Område</Text>
+          <View style={styles.sheetChipsRow}>
+            {availableAreas.map((area) => {
+              const isSelected = selectedAreas.includes(area.key);
+              return (
+                <Pressable
+                  key={area.key}
+                  onPress={() => toggleArea(area.key)}
+                  style={[styles.sheetChip, isSelected && styles.sheetChipActive]}
+                  testID={`filter-area-${area.key}`}
+                >
+                  <MapPin size={14} color={isSelected ? Colors.white : Colors.primaryLight} />
+                  <Text style={[styles.sheetChipText, isSelected && styles.sheetChipTextActive]}>{area.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Text style={styles.sheetSectionLabel}>Dato</Text>
+          <View style={styles.sheetChipsRow}>
+            <Pressable
+              onPress={() => selectDateFilter("custom")}
+              style={[styles.sheetChip, dateFilter === "custom" && styles.sheetChipActive]}
+              testID="filter-custom-date"
+            >
+              <Calendar size={14} color={dateFilter === "custom" ? Colors.white : Colors.primary} />
+              <Text style={[styles.sheetChipText, dateFilter === "custom" && styles.sheetChipTextActive]}>
+                {dateFilterLabel ?? "Velg datoperiode"}
+              </Text>
+              <ChevronDown size={12} color={dateFilter === "custom" ? Colors.white : Colors.textMuted} />
+            </Pressable>
+            {dateFilter === "custom" && (
+              <Pressable
+                onPress={() => { setDateFilter("all"); setCustomRange({ from: null, to: null }); }}
+                style={styles.clearChipBtn}
+                hitSlop={6}
+              >
+                <X size={14} color={Colors.textSecondary} />
+              </Pressable>
+            )}
+          </View>
+
+          <View style={styles.sheetActions}>
+            <Pressable
+              onPress={() => {
+                setSelectedAreas([]);
+                if (dateFilter === "custom") {
+                  setDateFilter("all");
+                  setCustomRange({ from: null, to: null });
+                }
+              }}
+              style={styles.sheetSecondaryBtn}
+            >
+              <Text style={styles.sheetSecondaryBtnText}>Nullstill</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setShowFilterSheet(false)}
+              style={styles.sheetPrimaryBtn}
+            >
+              <Check size={16} color={Colors.white} />
+              <Text style={styles.sheetPrimaryBtnText}>Vis resultater</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={showDatePicker}
@@ -840,12 +908,50 @@ const styles = StyleSheet.create({
     color: Colors.text,
     padding: 0,
   },
+  categoryTabsScroll: {
+    marginBottom: 4,
+  },
+  categoryTabsContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+    paddingVertical: 6,
+  },
+  categoryTab: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    borderWidth: 1,
+  },
+  categoryTabText: {
+    fontSize: 14,
+    fontWeight: "700" as const,
+  },
+  subTagsScroll: {
+    marginBottom: 4,
+  },
+  subTagsScrollContent: {
+    paddingHorizontal: 16,
+    gap: 6,
+    paddingVertical: 4,
+  },
+  subTagChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  subTagChipText: {
+    fontSize: 13,
+    fontWeight: "600" as const,
+  },
   quickFiltersRow: {
     flexDirection: "row" as const,
-    flexWrap: "wrap" as const,
     alignItems: "center" as const,
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingVertical: 6,
     gap: 8,
   },
   quickChip: {
@@ -863,130 +969,52 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600" as const,
   },
+  quickChipDateActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
   quickChipFreeActive: {
     backgroundColor: Colors.free,
     borderColor: Colors.free,
   },
-  quickChipCityActive: {
-    backgroundColor: Colors.primaryLight,
-    borderColor: Colors.primaryLight,
-  },
-  dateFiltersRow: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    gap: 8,
-  },
-  dateChip: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 5,
-    backgroundColor: Colors.white,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
-  dateChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  dateChipText: {
-    fontSize: 13,
-    fontWeight: "600" as const,
-    color: Colors.primary,
-  },
-  dateChipTextActive: {
-    color: Colors.white,
-  },
-  clearDateChip: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  clearChipBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: Colors.cardBorder,
     alignItems: "center" as const,
     justifyContent: "center" as const,
   },
-  categoriesContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    gap: 8,
-  },
-  categoryBlock: {
-    marginBottom: 2,
-  },
-  categoryHeader: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+  filterBtn: {
+    width: 40,
+    height: 40,
     borderRadius: 14,
-    borderWidth: 1,
-  },
-  categoryHeaderText: {
-    fontSize: 14,
-    fontWeight: "700" as const,
-    flex: 1,
-  },
-  categoryBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
+    backgroundColor: Colors.white,
     alignItems: "center" as const,
     justifyContent: "center" as const,
-    paddingHorizontal: 6,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
   },
-  categoryBadgeText: {
-    fontSize: 11,
-    fontWeight: "700" as const,
-    color: "#FFFFFF",
+  filterBtnActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
-  chevronWrap: {
-    width: 20,
+  filterBtnBadge: {
+    position: "absolute" as const,
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: Colors.accent,
     alignItems: "center" as const,
+    justifyContent: "center" as const,
+    paddingHorizontal: 4,
   },
-  subTagsWrap: {
-    flexDirection: "row" as const,
-    flexWrap: "wrap" as const,
-    paddingLeft: 12,
-    paddingTop: 6,
-    paddingBottom: 4,
-    gap: 6,
-  },
-  subTagPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  subTagText: {
-    fontSize: 12,
-    fontWeight: "600" as const,
-    textTransform: "capitalize" as const,
-  },
-  orphanTagsRow: {
-    flexDirection: "row" as const,
-    flexWrap: "wrap" as const,
-    gap: 6,
-    marginTop: 2,
-  },
-  tagsWrap: {
-    flexDirection: "row" as const,
-    flexWrap: "wrap" as const,
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    gap: 8,
-  },
-  tagPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-  },
-  tagPillText: {
-    fontSize: 13,
-    fontWeight: "600" as const,
+  filterBtnBadgeText: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: Colors.white,
   },
   resultRow: {
     flexDirection: "row" as const,
@@ -994,6 +1022,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between" as const,
     paddingHorizontal: 20,
     paddingBottom: 8,
+    paddingTop: 4,
   },
   resultCountText: {
     fontSize: 13,
@@ -1076,6 +1105,106 @@ const styles = StyleSheet.create({
   retryButtonText: {
     fontSize: 14,
     fontWeight: "600" as const,
+    color: Colors.white,
+  },
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+  },
+  sheetContainer: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.cardBorder,
+    alignSelf: "center" as const,
+    marginBottom: 16,
+  },
+  sheetTitle: {
+    fontSize: 20,
+    fontWeight: "800" as const,
+    color: Colors.primary,
+    marginBottom: 20,
+  },
+  sheetSectionLabel: {
+    fontSize: 13,
+    fontWeight: "700" as const,
+    color: Colors.textSecondary,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.8,
+    marginBottom: 10,
+    marginTop: 4,
+  },
+  sheetChipsRow: {
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
+    gap: 8,
+    marginBottom: 16,
+  },
+  sheetChip: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 22,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  sheetChipActive: {
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primaryLight,
+  },
+  sheetChipText: {
+    fontSize: 14,
+    fontWeight: "600" as const,
+    color: Colors.primary,
+  },
+  sheetChipTextActive: {
+    color: Colors.white,
+  },
+  sheetActions: {
+    flexDirection: "row" as const,
+    gap: 12,
+    marginTop: 8,
+  },
+  sheetSecondaryBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: Colors.background,
+    alignItems: "center" as const,
+  },
+  sheetSecondaryBtnText: {
+    fontSize: 15,
+    fontWeight: "600" as const,
+    color: Colors.textSecondary,
+  },
+  sheetPrimaryBtn: {
+    flex: 2,
+    flexDirection: "row" as const,
+    gap: 6,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: Colors.accent,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  sheetPrimaryBtnText: {
+    fontSize: 15,
+    fontWeight: "700" as const,
     color: Colors.white,
   },
   modalOverlay: {
