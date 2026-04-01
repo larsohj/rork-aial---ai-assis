@@ -3,7 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  SectionList,
+  FlatList,
   TextInput,
   Pressable,
   RefreshControl,
@@ -21,7 +21,7 @@ import { fetchEvents, fetchAllTags } from "@/lib/events";
 import { EventCard } from "@/components/EventCard";
 import { TAG_HIERARCHY, TagCategory, isOrphanTag } from "@/constants/tagHierarchy";
 import { AREAS, getEventArea } from "@/constants/areaMapping";
-import { groupEventsByDate, DateSection } from "@/lib/dateUtils";
+import { groupEventsByDate } from "@/lib/dateUtils";
 
 type DateFilterType = "all" | "today" | "weekend" | "custom";
 
@@ -282,31 +282,44 @@ export default function EventsFeedScreen() {
     extrapolate: "clamp",
   });
 
-  const sections = useMemo(() => {
-    return groupEventsByDate(filteredEvents);
+  type ListItem =
+    | { type: "section-header"; title: string; count: number; key: string }
+    | { type: "event"; event: EventData; key: string };
+
+  const listData = useMemo(() => {
+    const sections = groupEventsByDate(filteredEvents);
+    console.log('[EventsFeed] sections count:', sections.length, 'titles:', sections.map(s => s.title));
+    const items: ListItem[] = [];
+    for (const section of sections) {
+      items.push({ type: "section-header", title: section.title, count: section.data.length, key: `header-${section.title}` });
+      for (const event of section.data) {
+        items.push({ type: "event", event, key: event.source_id });
+      }
+    }
+    return items;
   }, [filteredEvents]);
 
-  const renderEvent = useCallback(
-    ({ item }: { item: EventData }) => <EventCard event={item} />,
+  const renderItem = useCallback(
+    ({ item }: { item: ListItem }) => {
+      if (item.type === "section-header") {
+        return (
+          <View style={styles.sectionHeaderContainer}>
+            <View style={styles.sectionHeaderAccent} />
+            <View style={styles.sectionHeaderContent}>
+              <Text style={styles.sectionHeaderText}>{item.title}</Text>
+              <Text style={styles.sectionHeaderCount}>
+                {item.count} {item.count === 1 ? "arrangement" : "arrangementer"}
+              </Text>
+            </View>
+          </View>
+        );
+      }
+      return <EventCard event={item.event} />;
+    },
     []
   );
 
-  const renderSectionHeader = useCallback(
-    ({ section }: { section: DateSection }) => (
-      <View style={styles.sectionHeaderContainer}>
-        <View style={styles.sectionHeaderAccent} />
-        <View style={styles.sectionHeaderContent}>
-          <Text style={styles.sectionHeaderText}>{section.title}</Text>
-          <Text style={styles.sectionHeaderCount}>
-            {section.data.length} {section.data.length === 1 ? "arrangement" : "arrangementer"}
-          </Text>
-        </View>
-      </View>
-    ),
-    []
-  );
-
-  const keyExtractor = useCallback((item: EventData) => item.source_id, []);
+  const keyExtractor = useCallback((item: ListItem) => item.key, []);
 
   const dateFilterLabel = useMemo(() => {
     if (dateFilter === "custom" && customRange.from && customRange.to) {
@@ -651,16 +664,14 @@ export default function EventsFeedScreen() {
         <Text style={styles.headerSubtitle}>{todayLabel}</Text>
       </Animated.View>
 
-      <SectionList
-        sections={sections}
-        renderItem={renderEvent}
-        renderSectionHeader={renderSectionHeader}
+      <FlatList
+        data={listData}
+        renderItem={renderItem}
         keyExtractor={keyExtractor}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        stickySectionHeadersEnabled={true}
         refreshControl={
           <RefreshControl
             refreshing={eventsQuery.isFetching && !eventsQuery.isLoading}
