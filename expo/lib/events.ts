@@ -168,7 +168,6 @@ export async function fetchEvents(): Promise<EventData[]> {
   }
 
   const now = new Date();
-  now.setHours(0, 0, 0, 0);
   const upcoming = allData.filter((e) => {
     if (!e.start_at) return true;
     const startDate = new Date(e.start_at);

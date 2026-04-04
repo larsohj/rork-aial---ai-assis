@@ -210,16 +210,19 @@ export default function EventsFeedScreen() {
         if (!e.start_at) return false;
         const start = new Date(e.start_at);
         const end = e.end_at ? new Date(e.end_at) : start;
+        if (start < now && end < now) return false;
         if (end.getTime() - start.getTime() > MAX_DURATION_MS) return false;
         return start <= todayEnd && end >= todayStart;
       });
     } else if (dateFilter === "weekend") {
+      const now = new Date();
       const { start: weekendStart, end: weekendEnd } = getWeekendRange();
       const MAX_DURATION_MS = 4 * 24 * 60 * 60 * 1000;
       filtered = filtered.filter((e) => {
         if (!e.start_at) return false;
         const start = new Date(e.start_at);
         const end = e.end_at ? new Date(e.end_at) : start;
+        if (start < now && end < now) return false;
         if (end.getTime() - start.getTime() > MAX_DURATION_MS) return false;
         return start <= weekendEnd && end >= weekendStart;
       });
@@ -360,6 +363,8 @@ export default function EventsFeedScreen() {
     return events.filter((e) => {
       if (!e.start_at) return false;
       const start = new Date(e.start_at);
+      const end = e.end_at ? new Date(e.end_at) : start;
+      if (start < now && end < now) return false;
       return start >= todayStart && start < tomorrowStart;
     }).slice(0, 10);
   }, [eventsQuery.data]);
@@ -368,10 +373,12 @@ export default function EventsFeedScreen() {
     const events = eventsQuery.data ?? [];
     const { start: weekendStart, end: weekendEnd } = getWeekendRange();
     const MAX_DURATION_MS = 4 * 24 * 60 * 60 * 1000;
+    const now = new Date();
     const weekend = events.filter((e) => {
       if (!e.start_at) return false;
       const start = new Date(e.start_at);
       const end = e.end_at ? new Date(e.end_at) : start;
+      if (start < now && end < now) return false;
       if (end.getTime() - start.getTime() > MAX_DURATION_MS) return false;
       return start <= weekendEnd && end >= weekendStart;
     });
