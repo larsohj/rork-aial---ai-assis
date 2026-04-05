@@ -2,6 +2,26 @@ import { EventData, EventsResponse } from "@/types/event";
 
 const EVENTS_URL = "https://cdn.jsdelivr.net/gh/larsohj/iaal@main/docs/events.json";
 
+let cachedResponse: EventsResponse | null = null;
+let cacheTimestamp = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+async function fetchEventsJson(): Promise<EventsResponse> {
+  const now = Date.now();
+  if (cachedResponse && now - cacheTimestamp < CACHE_TTL_MS) {
+    console.log("[events] Using cached events JSON");
+    return cachedResponse;
+  }
+  const response = await fetchWithRetry(EVENTS_URL);
+  if (!response.ok) {
+    throw new Error(`Kunne ikke laste arrangementer (HTTP ${response.status})`);
+  }
+  const json: EventsResponse = await response.json();
+  cachedResponse = json;
+  cacheTimestamp = now;
+  return json;
+}
+
 async function fetchWithRetry(url: string, retries = 3, delayMs = 1500): Promise<Response> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -168,13 +188,7 @@ function deduplicateEvents(events: EventData[]): EventData[] {
 export async function fetchEvents(): Promise<EventData[]> {
   console.log("[events] Fetching events from GitHub CDN...");
 
-  const response = await fetchWithRetry(EVENTS_URL);
-  if (!response.ok) {
-    console.error(`[events] HTTP error: ${response.status} ${response.statusText}`);
-    throw new Error(`Kunne ikke laste arrangementer (HTTP ${response.status})`);
-  }
-
-  const json: EventsResponse = await response.json();
+  const json = await fetchEventsJson();
   console.log(`[events] Received ${json.events.length} events, generated at ${json.generated_at}`);
 
   if (json.failed_sources.length > 0) {
@@ -219,13 +233,7 @@ export async function fetchAllCities(): Promise<string[]> {
   console.log("[events] Extracting cities from events...");
 
   try {
-    const response = await fetchWithRetry(EVENTS_URL);
-    if (!response.ok) {
-      console.error(`[events] HTTP error fetching cities: ${response.status}`);
-      return [];
-    }
-
-    const json: EventsResponse = await response.json();
+    const json = await fetchEventsJson();
     const allCities = json.events
       .map((e) => e.city)
       .filter((c): c is string => !!c && c.trim().length > 0);
@@ -242,13 +250,7 @@ export async function fetchAllTags(): Promise<string[]> {
   console.log("[events] Extracting tags from events...");
 
   try {
-    const response = await fetchWithRetry(EVENTS_URL);
-    if (!response.ok) {
-      console.error(`[events] HTTP error fetching tags: ${response.status}`);
-      return [];
-    }
-
-    const json: EventsResponse = await response.json();
+    const json = await fetchEventsJson();
     const allTags = json.events.flatMap((e) => e.tags ?? []);
     const unique = [...new Set(allTags)].sort();
     console.log(`[events] Found ${unique.length} unique tags:`, unique);
