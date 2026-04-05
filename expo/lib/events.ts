@@ -1,6 +1,6 @@
 import { EventData, EventsResponse } from "@/types/event";
 
-const EVENTS_URL = "https://cdn.jsdelivr.net/gh/larsohj/iaal@main/docs/events.json";
+const EVENTS_URL = "https://raw.githubusercontent.com/larsohj/iaal/main/docs/events.json";
 
 let cachedResponse: EventsResponse | null = null;
 let cacheTimestamp = 0;
