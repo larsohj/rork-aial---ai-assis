@@ -4,10 +4,8 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Linking,
-  Pressable,
 } from "react-native";
-import { Heart, Globe, MapPin, Code } from "lucide-react-native";
+import { Heart, Globe, MapPin } from "lucide-react-native";
 import { useTheme } from "@/context/ThemeContext";
 
 const DATA_SOURCES = [
@@ -15,9 +13,10 @@ const DATA_SOURCES = [
   "Viti museene",
   "Tikkio",
   "Parken kulturhus",
-  "Folkebiblioteket",
+  "Ålesund bibliotek",
   "Ticketmaster",
   "Bypatrioten",
+  "Visit Ålesund",
 ];
 
 export default function AboutScreen() {
@@ -42,9 +41,7 @@ export default function AboutScreen() {
           <Text style={[styles.sectionTitle, { color: colors.primary }]}>Om appen</Text>
         </View>
         <Text style={[styles.bodyText, { color: colors.textSecondary }]}>
-          Hva skjer i Ålesund? er et hobbyprosjekt som samler kulturarrangementer fra
-          Ålesund, Ørskog, Sula og Giske i én enkel oversikt. Vi ønsker å gjøre
-          det lettere å finne ut hva som skjer i regionen.
+          Ålesund - Hva skjer? er en app som samler kulturarrangementer fra Ålesund, Ørskog, Sula og Giske i én enkel oversikt. Vi ønsker å gjøre det lettere å finne ut hva som skjer i regionen.
         </Text>
       </View>
 
@@ -78,25 +75,6 @@ export default function AboutScreen() {
             </View>
           ))}
         </View>
-      </View>
-
-      <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-        <View style={styles.sectionHeader}>
-          <Code size={18} color={colors.accent} />
-          <Text style={[styles.sectionTitle, { color: colors.primary }]}>Åpen kildekode</Text>
-        </View>
-        <Text style={[styles.bodyText, { color: colors.textSecondary }]}>
-          Kildekoden er tilgjengelig på GitHub. Bidrag og tilbakemeldinger er
-          velkomne!
-        </Text>
-        <Pressable
-          style={[styles.linkButton, { backgroundColor: colors.accentMuted }]}
-          onPress={() =>
-            Linking.openURL("https://github.com/larsohj/iaal")
-          }
-        >
-          <Text style={[styles.linkButtonText, { color: colors.accent }]}>Se på GitHub</Text>
-        </Pressable>
       </View>
 
       <Text style={[styles.footerText, { color: colors.textMuted }]}>
