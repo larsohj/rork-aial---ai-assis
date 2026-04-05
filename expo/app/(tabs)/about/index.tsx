@@ -29,7 +29,7 @@ export default function AboutScreen() {
     >
       <View style={[styles.heroCard, { backgroundColor: colors.primary }]}>
         <Text style={styles.heroEmoji}>🏔️</Text>
-        <Text style={styles.heroTitle}>Hva skjer i Ålesund?</Text>
+        <Text style={styles.heroTitle}>Ålesund – Hva skjer?</Text>
         <Text style={[styles.heroSubtitle, { color: colors.accentLight }]}>
           Alt som skjer i Ålesund-regionen, samlet på ett sted.
         </Text>
