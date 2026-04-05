@@ -127,13 +127,13 @@ export default function EventsFeedScreen() {
   const eventsQuery = useQuery({
     queryKey: ["events"],
     queryFn: fetchEvents,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 0,
   });
 
   const tagsQuery = useQuery({
     queryKey: ["tags"],
     queryFn: fetchAllTags,
-    staleTime: 1000 * 60 * 10,
+    staleTime: 0,
   });
 
   const tags = useMemo(() => tagsQuery.data ?? [], [tagsQuery.data]);
