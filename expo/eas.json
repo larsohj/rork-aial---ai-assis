@@ -1,0 +1,29 @@
+{
+  "cli": {
+    "version": "27.2.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "simulator": {
+      "distribution": "internal",
+      "bun": "1.4.4",
+      "ios": {
+        "simulator": true
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "credentialsSource": "remote",
+      "autoIncrement": true,
+      "bun": "1.4.4"
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6761432920",
+        "appleTeamId": "LM6829WTW7"
+      }
+    }
+  }
+}

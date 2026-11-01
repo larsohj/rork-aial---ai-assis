@@ -1,5 +1,12 @@
 # Welcome to your Rork app
 
+## Build and TestFlight setup
+
+This app now also runs with standard Expo CLI and can be maintained with
+Claude Code or Codex. Use `bun run start` or `bun run start-web`.
+See [TESTFLIGHT.md](./TESTFLIGHT.md) for the current build, signing, and GitHub
+release workflow. That guide takes precedence over the original template below.
+
 ## Project info
 
 This is a native cross-platform mobile app created with [Rork](https://rork.com)
