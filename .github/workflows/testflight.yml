@@ -1,0 +1,67 @@
+name: Build and upload to TestFlight
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['ios-v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      EXPO_APPLE_TEAM_ID: LM6829WTW7
+    defaults:
+      run:
+        working-directory: expo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.4'
+      - name: Check account configuration
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PROJECT_ID: ${{ vars.EXPO_PROJECT_ID }}
+          EXPO_OWNER: ${{ vars.EXPO_OWNER }}
+          ASC_APP_ID: ${{ vars.ASC_APP_ID }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo '::error::Add EXPO_TOKEN as a GitHub Actions secret. See expo/TESTFLIGHT.md.'
+            exit 1
+          fi
+          node scripts/prepare-testflight.mjs
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run test:release
+      - name: Bundle iOS JavaScript before requesting a cloud build
+        run: bunx expo export --platform ios --output-dir dist-ios
+      - uses: expo/expo-github-action@v9.0.1
+        with:
+          eas-version: '27.2.0'
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Queue signed iOS build and automatic upload
+        run: |
+          eas build --platform ios --profile production --non-interactive --no-wait --json > "$RUNNER_TEMP/ios-build.json"
+          BUILD_ID=$(node -e 'const fs = require("fs"); const builds = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); if (!builds[0]?.id) process.exit(1); process.stdout.write(builds[0].id);' "$RUNNER_TEMP/ios-build.json")
+          eas submit --platform ios --profile production --id "$BUILD_ID" --non-interactive --no-wait --no-auto-testflight-setup
+      - name: Explain remote build status
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
+          ## iOS build requested
+          EAS is building the app and will upload it to App Store Connect after a successful build.
+          The workflow does not wait for the remote build or Apple's processing to finish.
+          Follow the EAS build/submission links in the previous step and verify the build in TestFlight.
+          A successful GitHub run means the build request was accepted, not that TestFlight is ready.
+          This does not submit the app for App Review or release it publicly.
+          SUMMARY

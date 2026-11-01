@@ -6,6 +6,7 @@ node_modules/
 # Expo
 .expo/
 dist/
+dist-ios/
 web-build/
 expo-env.d.ts
 
@@ -40,6 +41,8 @@ yarn-error.*
 
 .rork
 .env
+credentials.json
+package-lock.json
 core
 node_modules
 .expo

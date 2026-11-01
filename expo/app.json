@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ålesund - hva skjer",
     "slug": "7xg85oiv316atrlaj2lbx",
-    "version": "1.0.0",
+    "version": "1.1.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "rork-app",
@@ -15,7 +15,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.7xg85oiv316atrlaj2lbx"
+      "bundleIdentifier": "app.rork.7xg85oiv316atrlaj2lbx",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -39,6 +42,15 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": "https://rork.com/"
+      },
+      "eas": {
+        "projectId": "9af2f753-47c2-4aae-bfbe-7c6dcc3ef5af"
+      }
+    },
+    "owner": "elosral75"
   }
 }
