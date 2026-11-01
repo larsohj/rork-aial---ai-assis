@@ -14,29 +14,31 @@ Appen er koblet til Expo-eieren `elosral75`, prosjekt
 App Store-profil er opprettet og importert til EAS. EAS bekrefter at
 signeringen er klar. Ingen signeringsnøkler eller passord skal legges i Git.
 
-TestFlight hadde versjon 1.1.2, bygg 6, som utløpt. Ny versjon 1.1.2,
-bygg 9, er bygget og lastet opp til App Store Connect. EAS bekrefter
-`FINISHED` for både bygg og innsending 1. november 2026. Apple viser
-bygg 9 som `Processing` i TestFlight etter mottak.
-https://appstoreconnect.apple.com/teams/31d931df-a0bf-4ccc-b2c6-46d4957ca720/apps/6761432920/testflight/ios
-Bygg:
-https://expo.dev/accounts/elosral75/projects/7xg85oiv316atrlaj2lbx/builds/fc7fed0c-7fd2-408e-9dcd-90159b389f29
-Innsending:
-https://expo.dev/accounts/elosral75/projects/7xg85oiv316atrlaj2lbx/submissions/21efff9c-0152-4cbf-b611-8d839d1c2125
+GitHub-automatiseringen er prøvd fra `main` 1. november 2026:
+https://github.com/larsohj/rork-aial---ai-assis/actions/runs/41349945187
+GitHub-kjøringen er grønn, og EXPO_TOKEN ble brukt med vellykket EAS-pålogging.
+Versjon 1.1.2, bygg 10, er bygget og lastet opp til App Store Connect.
+EAS bekrefter `FINISHED` for både bygg og innsending. Apple viser bygg 10
+som `Processing` ved siste kontroll. Bygg 9 er ferdig behandlet hos Apple.
 
-Bygg 8 feilet ved import av PKCS#12 i macOS. Samme sertifikat ble eksportert
-på nytt med macOS-kompatibel PKCS#12-kryptering og importert på nytt til EAS.
-Bygg 9 passerte signering og full native iOS-bygging. Appen er ikke sendt
-til App Review eller publisert offentlig.
+Bygg:
+https://expo.dev/accounts/elosral75/projects/7xg85oiv316atrlaj2lbx/builds/dd3b23ff-d095-48cd-aca1-34b27b64b82f
+Innsending:
+https://expo.dev/accounts/elosral75/projects/7xg85oiv316atrlaj2lbx/submissions/aa4da17e-789a-447e-942a-e93f6fc8ed90
+TestFlight:
+https://appstoreconnect.apple.com/teams/31d931df-a0bf-4ccc-b2c6-46d4957ca720/apps/6761432920/testflight/ios
+
+Expo-action er låst til den verifiserte committen for utgave 9.0.1.
+Signeringsoppsettet er kontrollert gjennom vellykkede native iOS-bygg.
+Appen er ikke sendt til App Review eller publisert offentlig.
 
 Kontoeieren har godkjent kildekodeoverføring, signeringsoppsett og API-nøkkel.
 Developer Program-avtalen og API-vilkårene er godtatt. Nøkkelen
 `Alesund EAS Submit`, ID `3C2GZL6826`, er opprettet med Developer-rolle og
 knyttet til prosjektet i EAS for innsending. Privatnøkler ligger ikke i Git.
 GitHub-skrivetilgang er bekreftet etter at appens repository ble lagt til i
-integrasjonens valgte repositoryer. GitHub-handlingene følger med denne
-endringen. EXPO_TOKEN må konfigureres som secret før TestFlight-handlingen
-kan kjøres fra GitHub.
+integrasjonens valgte repositoryer. GitHub-handlingene er lagt inn i main,
+og EXPO_TOKEN er konfigurert som repository-secret.
 
 Bevar eksisterende bundle-ID `app.rork.7xg85oiv316atrlaj2lbx` dersom den allerede
 er registrert på Apple-kontoen din. Rork-navnet i ID-en betyr ikke at Rork må
